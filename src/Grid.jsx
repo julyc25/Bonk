@@ -5,7 +5,7 @@ function App() {
 
   return (
     <div style={{ padding: "24px", textAlign: "center" }}>
-      <p>bonk</p>
+      <p>bonk grid</p>
     </div>
   )
 }
