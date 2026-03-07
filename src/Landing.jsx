@@ -69,7 +69,7 @@ export default function Landing() {
             </div>
 
             {/* RIGHT COLUMN: demo screenshot */}
-            {/* insert */}
+            <img style={{maxWidth: "50vh"}} src="" alt="Demo Screenshot"/>
         </div>
     </div>
   );
