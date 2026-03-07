@@ -1,5 +1,6 @@
 
 import { useState } from 'react'
+export const mono = { fontFamily: "monospace" };
 const PRIMARY = '#000';
 const PRIMARY_ACCENT = '#555';
 const SECONDARY_ACCENT = '#ff2e97';
