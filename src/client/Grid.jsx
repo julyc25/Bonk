@@ -490,7 +490,7 @@ export default function Grid() {
      {/* NAVBAR */}
      <nav
        style={{
-         padding: "12px 30px",
+         padding: "22px 48px",
          display: "flex",
          justifyContent: "space-between",
          alignItems: "center",
@@ -499,6 +499,7 @@ export default function Grid() {
          top: 0,
          zIndex: 50,
          background: "#000",
+         fontSize: 24
        }}
      >
        <span style={{ fontSize: 18, fontWeight: 700, color: "#fff", letterSpacing: -0.5 }}>

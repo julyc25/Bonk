@@ -33,8 +33,8 @@ export default function Landing() {
   return (
     <div style={{minHeight: "100vh", background: PRIMARY, color: SECONDARY,...mono, display: "flex", flexDirection: "column"}}>
         {/* NAVBAR */}
-        <nav style={{padding: "25px 48px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #666"}}>
-            <span style={{fontSize: 30, fontWeight: 700, color: SECONDARY, letterSpacing: -0.5}}>bonk</span>
+        <nav style={{padding: "22px 48px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #666"}}>
+            <span style={{fontSize: 24, fontWeight: 700, color: SECONDARY, letterSpacing: -0.5}}>bonk</span>
         </nav>
 
         {/* HERO (2 cols)*/}
@@ -46,7 +46,7 @@ export default function Landing() {
                     Share screens,<br/>
                     <span style={{color: SECONDARY_ACCENT}}>Stay focused.</span>
                 </h1>
-                <p style={{color: PRIMARY_ACCENT, fontSize: 18, lineHeight: 1.8,
+                <p style={{color: PRIMARY_ACCENT, fontSize: 15, lineHeight: 1.8,
                     margin: "24px 0 40px", maxWidth: 460, color: "#999"}}>
                     Addicted to your devices? More focused with others around? Meet <span style={{fontStyle: "italic"}}>bonk</span>, a place where your friends monitor your screen as you work.
                 </p>
@@ -55,13 +55,13 @@ export default function Landing() {
                 <div style={{border: "1px solid #666", padding: 28, background: PRIMARY}}>
                     <button onClick={() => navigate('/view')} style={{
                         width: "100%", maxWidth: 420, padding: "14px 28px", border: "1px solid #AAA",
-                        background: "#fff", color: "#000", fontSize: 16, ...mono,
+                        background: "#fff", color: "#000", fontSize: 15, ...mono,
                         cursor: "pointer", display: "flex", alignItems: "center",
                         justifyContent: "center", gap: 10, boxSizing: "border-box", whiteSpace: "nowrap"}}>
                         <GoogleIcon/> Sign in with Google
                     </button>
 
-                    <p style={{color: "#999", fontSize: 11, lineHeight: 1.6, margin: "18px 0 0"}}>
+                    <p style={{color: "#999", fontSize: 13, lineHeight: 1.6, margin: "18px 0 0"}}>
                         by continuing you agree to the{" "}
                         <a href="#" style={{color: SECONDARY_ACCENT, textDecoration: "none"}}>privacy policy</a>.
                     </p>

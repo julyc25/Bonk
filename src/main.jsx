@@ -1,8 +1,8 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import Landing from './Landing.jsx'
-import Grid from './Grid.jsx'
+import Landing from './client/Landing.jsx'
+import Grid from './client/Grid.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
