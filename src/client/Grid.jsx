@@ -2,20 +2,22 @@ import { useState, useMemo, useEffect } from "react";
 
 
 export const mono = { fontFamily: "monospace" };
+
+
 const PRIMARY = '#000';
 const PRIMARY_ACCENT = '#555';
 const SECONDARY_ACCENT = '#ff2e97';
 const SECONDARY = '#FFF';
 
-
 const FRIENDS = [
  {
    id: "you@gmail.com",
    name: "You",
-   status: "edit status here",
+   status: "Edit status here...",
    isYou: true,
    live: false,
  },
+ // placeholders
  {
    id: "emily@gmail.com",
    name: "Emily",
@@ -36,8 +38,8 @@ const FRIENDS = [
  }
 ];
 
-
 const FRIEND_REQUESTS = [
+  // placeholders
  { id: "michelle@gmail.com", name: "Michelle" },
  { id: "yiwen@gmail.com", name: "Yiwen" },
  { id: "namitha@gmail.com", name: "Namitha" },
@@ -175,7 +177,6 @@ const CloseBtn = ({ onClick }) => (
 );
 
 
-// Editable status for user
 const StatusEditor = ({ value, onChange }) => {
  const [editing, setEditing] = useState(false);
  const [draft, setDraft] = useState(value);
@@ -390,7 +391,7 @@ export default function Grid() {
  const [showPreview, setShowPreview] = useState(false);
  const [yourStatus, setYourStatus] = useState("deep focus 🎧");
 
-
+// Track if this tab is active
  const [viewingBonk, setViewingBonk] = useState(
    () => document.visibilityState === "visible"
  );
@@ -401,7 +402,7 @@ export default function Grid() {
    return () => document.removeEventListener("visibilitychange", onVisibility);
  }, []);
 
-
+// Accepts friend requests and adds them
  const handleAccept = (id) => {
    const r = requests.find((x) => x.id === id);
    if (r) {
@@ -427,10 +428,10 @@ export default function Grid() {
    if (addEmail.trim()) setAddEmail("");
  };
 
-
+// Your screen is only expandable if you are live
  const isViewable = (f) => f.isYou ? screenOn : f.live;
 
-
+// Expand clicked screen
  const handleCardClick = (id) => {
    const f = friends.find((x) => x.id === id);
    if (!f || !isViewable(f)) return;
@@ -468,7 +469,7 @@ export default function Grid() {
 
  const youData = friends.find((f) => f.isYou);
 
-
+// Live screens have priority
  const sortedFriends = useMemo(() => {
    const you = friends.filter((f) => f.isYou);
    const others = friends.filter((f) => !f.isYou);
@@ -563,6 +564,7 @@ export default function Grid() {
 
 
      <div style={{ padding: "12px 24px 40px" }}>
+      {/* Preview screen */}
        {showPreview && (
          <div style={{ marginBottom: 12 }}>
            <div
@@ -640,7 +642,7 @@ export default function Grid() {
          </div>
        )}
 
-
+      {/* Expanded screen */}
        {expanded && !showPreview && (
          <div style={{ marginBottom: 12 }}>
            <div
@@ -701,7 +703,7 @@ export default function Grid() {
          </div>
        )}
 
-
+      {/* Main grid */}
        <div
          style={{
            display: "grid",
