@@ -1,6 +1,8 @@
+import { useNavigate } from 'react-router-dom';
+
 /**
  * Google SVG Icon
- * @returns 
+ * @returns
  */
 const GoogleIcon = () => (
   <svg width="18" height="18" viewBox="0 0 48 48">
@@ -27,6 +29,7 @@ const SECONDARY = '#FFF';
  * 3. Footer (left: year | right: privacy/terms links)
  */
 export default function Landing() {
+  const navigate = useNavigate();
   return (
     <div style={{minHeight: "100vh", background: PRIMARY, color: SECONDARY,...mono, display: "flex", flexDirection: "column"}}>
         {/* NAVBAR */}
@@ -50,7 +53,7 @@ export default function Landing() {
 
                 {/* GOOGLE LOGIN */}
                 <div style={{border: "1px solid #222", padding: 20, background: PRIMARY}}>
-                    <button style={{
+                    <button onClick={() => navigate('/view')} style={{
                         width: "100%", maxWidth: 300, padding: "10px 24px", border: "1px solid #333",
                         background: "#fff", color: "#000", fontSize: 13, ...mono,
                         cursor: "pointer", display: "flex", alignItems: "center",
