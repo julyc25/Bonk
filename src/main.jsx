@@ -6,7 +6,6 @@ import Grid from './Grid.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <App />
     <Landing />
     <Grid />
   </StrictMode>,
