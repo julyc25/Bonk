@@ -17,8 +17,8 @@ const GoogleIcon = () => (
 const mono = { fontFamily: "monospace" };
 const PRIMARY = '#000';
 const PRIMARY_ACCENT = '#555';
-const SECCOND_ACCENT = '#ff2e97';
-const SECONARY = '#FFF';
+const SECONDARY_ACCENT = '#ff2e97';
+const SECONDARY = '#FFF';
 
 /**
  * Landing Page
@@ -28,12 +28,46 @@ const SECONARY = '#FFF';
  */
 export default function Landing() {
   return (
-    <div style={{minHeight: "100vh", background: "PRIMARY", color: "SECONDARY",...mono, display: "flex", flexDirection: "column"}}>
+    <div style={{minHeight: "100vh", background: PRIMARY, color: SECONDARY,...mono, display: "flex", flexDirection: "column"}}>
         {/* NAVBAR */}
         <nav style={{padding: "12px 30px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #222"}}>
-            <span style={{fontSize: 18, fontWeight: 700, color: "SECONDARY", letterSpacing: -0.5}}>bonk</span>
+            <span style={{fontSize: 18, fontWeight: 700, color: SECONDARY, letterSpacing: -0.5}}>bonk</span>
         </nav>
 
+        {/* HERO (2 cols)*/}
+        <div style={{flex: 1, display: "flex", alignItems: "center", justifyContent: "center",padding: "40px 30px", gap: 60}}>
+            {/* LEFT COL: headline, subtitle, google login */}
+            <div style={{maxWidth: 350}}>
+                <h1 style={{fontSize: 32, fontWeight: 700, 
+                    lineHeight: 1.2, margin: 0,color: SECONDARY, ...mono}}>
+                    share screens,<br/>
+                    <span style={{color: SECONDARY_ACCENT}}>stay focused.</span>
+                </h1>
+                <p style={{color: PRIMARY_ACCENT, fontSize: 13, lineHeight: 1.7, 
+                    margin: "16px 0 28px", maxWidth: 300}}>
+                    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris interdum orci interdum magna tristique, sollicitudin pharetra nulla finibus. 
+                </p>
+
+                {/* GOOGLE LOGIN */}
+                <div style={{border: "1px solid #222", padding: 20, background: PRIMARY}}>
+                    <button style={{
+                        width: "100%", maxWidth: 300, padding: "10px 24px", border: "1px solid #333",
+                        background: "#fff", color: "#000", fontSize: 13, ...mono,
+                        cursor: "pointer", display: "flex", alignItems: "center",
+                        justifyContent: "center", gap: 8, boxSizing: "border-box", whiteSpace: "nowrap"}}>
+                        <GoogleIcon/> sign in with google
+                    </button>
+
+                    <p style={{color: "#333", fontSize: 10, lineHeight: 1.6, margin: "14px 0 0"}}>
+                        by continuing you agree to the{" "}
+                        <a href="#" style={{color: SECONDARY_ACCENT, textDecoration: "none"}}>privacy policy</a>.
+                    </p>
+                </div>
+            </div>
+
+            {/* RIGHT COLUMN: demo screenshot */}
+            {/* insert */}
+        </div>
     </div>
   );
 }
