@@ -52,7 +52,7 @@ export default function Landing() {
                 <div style={{border: "1px solid #222", padding: 20, background: PRIMARY}}>
                     <button style={{
                         width: "100%", maxWidth: 300, padding: "10px 24px", border: "1px solid #333",
-                        background: "#fff", color: "#000", fontSize: 13, ...mono,
+                        background: SECONDARY, color: "PRIMARY", fontSize: 13, ...mono,
                         cursor: "pointer", display: "flex", alignItems: "center",
                         justifyContent: "center", gap: 8, boxSizing: "border-box", whiteSpace: "nowrap"}}>
                         <GoogleIcon/> sign in with google
@@ -66,7 +66,7 @@ export default function Landing() {
             </div>
 
             {/* RIGHT COLUMN: demo screenshot */}
-            {/* insert */}
+            <img style={{maxWidth: "50vh"}} src="" alt="Demo Screenshot"/>
         </div>
     </div>
   );
