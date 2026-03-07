@@ -33,35 +33,35 @@ export default function Landing() {
   return (
     <div style={{minHeight: "100vh", background: PRIMARY, color: SECONDARY,...mono, display: "flex", flexDirection: "column"}}>
         {/* NAVBAR */}
-        <nav style={{padding: "12px 30px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #222"}}>
-            <span style={{fontSize: 18, fontWeight: 700, color: SECONDARY, letterSpacing: -0.5}}>bonk</span>
+        <nav style={{padding: "25px 48px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #666"}}>
+            <span style={{fontSize: 30, fontWeight: 700, color: SECONDARY, letterSpacing: -0.5}}>bonk</span>
         </nav>
 
         {/* HERO (2 cols)*/}
-        <div style={{flex: 1, display: "flex", alignItems: "center", justifyContent: "center",padding: "40px 30px", gap: 60}}>
+        <div style={{flex: 1, display: "flex", alignItems: "center", justifyContent: "center",padding: "80px 60px", gap: 80}}>
             {/* LEFT COL: headline, subtitle, google login */}
-            <div style={{maxWidth: 350}}>
-                <h1 style={{fontSize: 32, fontWeight: 700, 
+            <div style={{maxWidth: 520}}>
+                <h1 style={{fontSize: 60, fontWeight: 700, 
                     lineHeight: 1.2, margin: 0,color: SECONDARY, ...mono}}>
-                    share screens,<br/>
-                    <span style={{color: SECONDARY_ACCENT}}>stay focused.</span>
+                    Share screens,<br/>
+                    <span style={{color: SECONDARY_ACCENT}}>Stay focused.</span>
                 </h1>
-                <p style={{color: PRIMARY_ACCENT, fontSize: 13, lineHeight: 1.7, 
-                    margin: "16px 0 28px", maxWidth: 300}}>
-                    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris interdum orci interdum magna tristique, sollicitudin pharetra nulla finibus. 
+                <p style={{color: PRIMARY_ACCENT, fontSize: 18, lineHeight: 1.8,
+                    margin: "24px 0 40px", maxWidth: 460, color: "#999"}}>
+                    Addicted to your devices? More focused with others around? Meet <span style={{fontStyle: "italic"}}>bonk</span>, a place where your friends monitor your screen as you work.
                 </p>
 
                 {/* GOOGLE LOGIN */}
-                <div style={{border: "1px solid #222", padding: 20, background: PRIMARY}}>
+                <div style={{border: "1px solid #666", padding: 28, background: PRIMARY}}>
                     <button onClick={() => navigate('/view')} style={{
-                        width: "100%", maxWidth: 300, padding: "10px 24px", border: "1px solid #333",
-                        background: "#fff", color: "#000", fontSize: 13, ...mono,
+                        width: "100%", maxWidth: 420, padding: "14px 28px", border: "1px solid #AAA",
+                        background: "#fff", color: "#000", fontSize: 16, ...mono,
                         cursor: "pointer", display: "flex", alignItems: "center",
-                        justifyContent: "center", gap: 8, boxSizing: "border-box", whiteSpace: "nowrap"}}>
-                        <GoogleIcon/> sign in with google
+                        justifyContent: "center", gap: 10, boxSizing: "border-box", whiteSpace: "nowrap"}}>
+                        <GoogleIcon/> Sign in with Google
                     </button>
 
-                    <p style={{color: "#333", fontSize: 10, lineHeight: 1.6, margin: "14px 0 0"}}>
+                    <p style={{color: "#999", fontSize: 11, lineHeight: 1.6, margin: "18px 0 0"}}>
                         by continuing you agree to the{" "}
                         <a href="#" style={{color: SECONDARY_ACCENT, textDecoration: "none"}}>privacy policy</a>.
                     </p>
