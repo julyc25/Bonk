@@ -44,7 +44,7 @@ const FRIEND_REQUESTS = [
 ];
 
 const btn = {
-  background: "#000",
+  background: PRIMARY,
   border: "1px solid #333",
   color: "#888",
   padding: "4px 8px",
@@ -52,19 +52,19 @@ const btn = {
   fontSize: 12,
   ...mono,
 };
-const btnPink = { ...btn, border: "1px solid #ff2e97", color: "#ff2e97" };
+const btnPink = { ...btn, border: `1px solid ${SECONDARY_ACCENT}`, color: SECONDARY_ACCENT };
 const btnGreen = { ...btn, border: "1px solid #39ff14", color: "#39ff14" };
 const btnDanger = {
   ...btn,
-  border: "1px solid #ff2e97",
-  background: "#ff2e97",
-  color: "#000",
+  border: `1px solid ${SECONDARY_ACCENT}`,
+  background: SECONDARY_ACCENT,
+  color: PRIMARY,
 };
 
 const Screen = ({ name, isBlurred, isOff, isViewingBonk }) => {
   // Shows a black screen when not live
   if (isOff) {
-    return <div style={{ width: "100%", height: "100%", background: "#000" }} />;
+    return <div style={{ width: "100%", height: "100%", background: PRIMARY }} />;
   }
 
   // Pauses screen sharing when on this tab
@@ -74,7 +74,7 @@ const Screen = ({ name, isBlurred, isOff, isViewingBonk }) => {
         style={{
           width: "100%",
           height: "100%",
-          background: "#000",
+          background: PRIMARY,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -82,7 +82,7 @@ const Screen = ({ name, isBlurred, isOff, isViewingBonk }) => {
         }}
       >
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 11, color: "#ff2e97", ...mono, marginBottom: 3 }}>
+          <div style={{ fontSize: 11, color: SECONDARY_ACCENT, ...mono, marginBottom: 3 }}>
             ⚠ viewing bonk
           </div>
           <div style={{ fontSize: 10, color: "#333", ...mono }}>
@@ -98,7 +98,7 @@ const Screen = ({ name, isBlurred, isOff, isViewingBonk }) => {
       style={{
         width: "100%",
         height: "100%",
-        background: "#000",
+        background: PRIMARY,
         filter: isBlurred ? "blur(8px)" : "none",
         transition: "filter 0.2s",
         display: "flex",
@@ -112,7 +112,7 @@ const Screen = ({ name, isBlurred, isOff, isViewingBonk }) => {
         style={{
           opacity: 0.15,
           fontSize: 11,
-          color: "#fff",
+          color: SECONDARY,
           ...mono,
           lineHeight: 1.5,
           textAlign: "center",
@@ -132,9 +132,9 @@ const CloseBtn = ({ onClick }) => (
       top: 6,
       right: 6,
       zIndex: 10,
-      background: "#000",
+      background: PRIMARY,
       border: "1px solid #333",
-      color: "#fff",
+      color: SECONDARY,
       width: 28,
       height: 28,
       cursor: "pointer",
@@ -172,8 +172,8 @@ const StatusEditor = ({ value, onChange }) => {
         style={{
           background: "transparent",
           border: "none",
-          borderBottom: "1px solid #ff2e97",
-          color: "#ff2e97",
+          borderBottom: `1px solid ${SECONDARY_ACCENT}`,
+          color: SECONDARY_ACCENT,
           fontSize: 10,
           outline: "none",
           width: "100%",
@@ -194,10 +194,10 @@ const StatusEditor = ({ value, onChange }) => {
         setEditing(true);
       }}
       style={{
-        color: "#ff2e97",
+        color: SECONDARY_ACCENT,
         fontSize: 10,
         cursor: "text",
-        borderBottom: "1px dashed #ff2e97",
+        borderBottom: `1px dashed ${SECONDARY_ACCENT}`,
         marginTop: 1,
         display: "inline-block",
         overflow: "hidden",
@@ -231,7 +231,7 @@ const FriendsPanel = ({
         right: 0,
         width: 320,
         maxHeight: "calc(100vh - 70px)",
-        background: "#000",
+        background: PRIMARY,
         border: "1px solid #333",
         zIndex: 100,
         display: "flex",
@@ -248,7 +248,7 @@ const FriendsPanel = ({
           borderBottom: "1px solid #222",
         }}
       >
-        <span style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>
+        <span style={{ color: SECONDARY, fontWeight: 700, fontSize: 14 }}>
           friends
         </span>
         <button
@@ -256,7 +256,7 @@ const FriendsPanel = ({
           style={{
             background: "none",
             border: "none",
-            color: "#555",
+            color: PRIMARY_ACCENT,
             cursor: "pointer",
             fontSize: 16,
             ...mono,
@@ -269,7 +269,7 @@ const FriendsPanel = ({
       <div style={{ padding: "10px 12px", borderBottom: "1px solid #222" }}>
         <div
           style={{
-            color: "#555",
+            color: PRIMARY_ACCENT,
             fontSize: 11,
             textTransform: "uppercase",
             marginBottom: 6,
@@ -284,10 +284,10 @@ const FriendsPanel = ({
             placeholder="friend@gmail.com"
             style={{
               flex: 1,
-              background: "#000",
+              background: PRIMARY,
               border: "1px solid #333",
               padding: "5px 8px",
-              color: "#fff",
+              color: SECONDARY,
               fontSize: 13,
               outline: "none",
               ...mono,
@@ -305,7 +305,7 @@ const FriendsPanel = ({
       <div style={{ flex: 1, overflowY: "auto", padding: "8px 12px" }}>
         <div
           style={{
-            color: "#555",
+            color: PRIMARY_ACCENT,
             fontSize: 11,
             textTransform: "uppercase",
             marginBottom: 8,
@@ -328,7 +328,7 @@ const FriendsPanel = ({
             }}
           >
             <div>
-              <div style={{ color: "#fff", fontSize: 13 }}>{r.name}</div>
+              <div style={{ color: SECONDARY, fontSize: 13 }}>{r.name}</div>
               <div style={{ color: "#444", fontSize: 11 }}>{r.id}</div>
             </div>
             <div style={{ display: "flex", gap: 4 }}>
@@ -448,8 +448,8 @@ export default function Grid() {
     <div
       style={{
         minHeight: "100vh",
-        background: "#000",
-        color: "#fff",
+        background: PRIMARY,
+        color: SECONDARY,
         ...mono,
       }}
     >
@@ -464,10 +464,10 @@ export default function Grid() {
           position: "sticky",
           top: 0,
           zIndex: 50,
-          background: "#000",
+          background: PRIMARY,
         }}
       >
-        <span style={{ fontSize: 24, fontWeight: 700, color: "#fff", letterSpacing: -0.5 }}>
+        <span style={{ fontSize: 24, fontWeight: 700, color: SECONDARY, letterSpacing: -0.5 }}>
           bonk
         </span>
         <div style={{ position: "relative" }}>
@@ -475,7 +475,7 @@ export default function Grid() {
             onClick={() => setShowFriends(!showFriends)}
             style={{
               ...btn,
-              background: showFriends ? "#111" : "#000",
+              background: showFriends ? "#111" : PRIMARY,
               display: "flex",
               alignItems: "center",
               gap: 4,
@@ -489,8 +489,8 @@ export default function Grid() {
                   position: "absolute",
                   top: -5,
                   right: -8,
-                  background: "#ff2e97",
-                  color: "#000",
+                  background: SECONDARY_ACCENT,
+                  color: PRIMARY,
                   fontSize: 10,
                   fontWeight: 700,
                   minWidth: 16,
@@ -534,8 +534,8 @@ export default function Grid() {
           <div style={{ marginBottom: 12 }}>
             <div
               style={{
-                border: "1px dashed #ff2e97",
-                background: "#000",
+                border: `1px dashed ${SECONDARY_ACCENT}`,
+                background: PRIMARY,
                 position: "relative",
               }}
             >
@@ -545,12 +545,12 @@ export default function Grid() {
                   top: 6,
                   left: 8,
                   zIndex: 10,
-                  border: "1px solid #ff2e97",
-                  color: "#ff2e97",
+                  border: `1px solid ${SECONDARY_ACCENT}`,
+                  color: SECONDARY_ACCENT,
                   fontSize: 11,
                   fontWeight: 700,
                   padding: "2px 8px",
-                  background: "#000",
+                  background: PRIMARY,
                   ...mono,
                 }}
               >
@@ -574,9 +574,9 @@ export default function Grid() {
                   justifyContent: "space-between",
                 }}
               >
-                <div style={{ fontSize: 14, color: "#fff" }}>
+                <div style={{ fontSize: 14, color: SECONDARY }}>
                   {youData.name}*{" "}
-                  <span style={{ color: "#ff2e97", fontSize: 12 }}>
+                  <span style={{ color: SECONDARY_ACCENT, fontSize: 12 }}>
                     preview
                   </span>
                 </div>
@@ -595,7 +595,7 @@ export default function Grid() {
                     style={{
                       ...btnGreen,
                       background: "#39ff14",
-                      color: "#000",
+                      color: PRIMARY,
                       fontWeight: 700,
                     }}
                   >
@@ -613,7 +613,7 @@ export default function Grid() {
             <div
               style={{
                 border: "1px solid #333",
-                background: "#000",
+                background: PRIMARY,
                 position: "relative",
               }}
             >
@@ -639,7 +639,7 @@ export default function Grid() {
 
                   {/* Name and live status */}
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                    <div style={{ fontSize: 14, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <div style={{ fontSize: 14, color: SECONDARY, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {expanded.name}
                       {expanded.isYou ? "*" : ""}
                     </div>
@@ -659,7 +659,7 @@ export default function Grid() {
 
                   {isViewable(expanded) && (
                     <div style={{ marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      <span style={{ color: "#555", fontSize: 12 }}>
+                      <span style={{ color: PRIMARY_ACCENT, fontSize: 12 }}>
                         {expanded.isYou ? yourStatus : expanded.status}
                       </span>
                     </div>
@@ -710,8 +710,8 @@ export default function Grid() {
                 key={f.id}
                 onClick={() => handleCardClick(f.id)}
                 style={{
-                  background: "#000",
-                  border: isExp ? "3px solid #ff2e97" : "2px solid #333",
+                  background: PRIMARY,
+                  border: isExp ? `3px solid ${SECONDARY_ACCENT}` : "2px solid #333",
                   cursor: screenOff ? "default" : "pointer",
                   opacity: isExp ? 0.6 : 1,
                   transition: "opacity 0.15s",
@@ -738,7 +738,7 @@ export default function Grid() {
 
                     {/* Name and status */}
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                      <div style={{ fontSize: 12, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      <div style={{ fontSize: 12, color: SECONDARY, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                         {f.name}
                         {f.isYou ? "*" : ""}
                       </div>
@@ -764,7 +764,7 @@ export default function Grid() {
                         ) : displayStatus ? (
                           <span
                             style={{
-                              color: "#555",
+                              color: PRIMARY_ACCENT,
                               fontSize: 10,
                               overflow: "hidden",
                               textOverflow: "ellipsis",
@@ -800,7 +800,7 @@ export default function Grid() {
                           padding: "2px 5px",
                         }}
                       >
-                        {screenOn ? "stop" : "live"}
+                        {screenOn ? "stop" : "go live"}
                       </button>
                     </div>
                   )}
