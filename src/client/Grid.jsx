@@ -406,6 +406,7 @@ export default function Grid() {
   const handleCardClick = (id) => {
     const f = friends.find((x) => x.id === id);
     if (!f || !isViewable(f)) return;
+    setShowPreview(false);
     setExpandedId((prev) => (prev === id ? null : id));
   };
 
