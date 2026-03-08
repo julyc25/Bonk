@@ -424,7 +424,7 @@ export default function Grid() {
   const handleConfirmLive = () => {
     setScreenOn(true);
     setShowPreview(false);
-    setExpandedId("you@gmail.com");
+    setExpandedId(null);
   };
 
   const handleCancelPreview = () => setShowPreview(false);
@@ -575,10 +575,7 @@ export default function Grid() {
                 }}
               >
                 <div style={{ fontSize: 14, color: SECONDARY }}>
-                  {youData.name}*{" "}
-                  <span style={{ color: SECONDARY_ACCENT, fontSize: 12 }}>
-                    preview
-                  </span>
+                  {youData.name}{" "}
                 </div>
                 <div style={{ display: "flex", gap: 4 }}>
                   <button
@@ -641,7 +638,6 @@ export default function Grid() {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                     <div style={{ fontSize: 14, color: SECONDARY, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {expanded.name}
-                      {expanded.isYou ? "*" : ""}
                     </div>
                     {!expanded.isYou && (
                       <span
@@ -740,7 +736,6 @@ export default function Grid() {
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                       <div style={{ fontSize: 12, color: SECONDARY, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                         {f.name}
-                        {f.isYou ? "*" : ""}
                       </div>
                       {!f.isYou && (
                         <span
