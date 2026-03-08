@@ -40,7 +40,7 @@ const FRIEND_REQUESTS = [
   // placeholders
   { id: "michelle@gmail.com", name: "Michelle" },
   { id: "yiwen@gmail.com", name: "Yiwen" },
-  { id: "namitha@gmail.com", name: "Namitha" },
+  { id: "namitha@gmail.com", name: "Namitha" }
 ];
 
 const btn = {
@@ -66,7 +66,7 @@ const Screen = ({ name, isBlurred, isOff, isViewingBonk }) => {
   if (isOff) {
     return <div style={{ width: "100%", height: "100%", background: "#000" }} />;
   }
-  
+
   // Pauses screen sharing when on this tab
   if (isViewingBonk) {
     return (
@@ -222,7 +222,7 @@ const FriendsPanel = ({
   onAdd,
 }) => {
   if (!show) return null;
-  
+
   return (
     <div
       style={{
@@ -361,13 +361,13 @@ export default function Grid() {
   const [requests, setRequests] = useState(FRIEND_REQUESTS);
   const [addEmail, setAddEmail] = useState("");
   const [showPreview, setShowPreview] = useState(false);
-  const [yourStatus, setYourStatus] = useState("deep focus 🎧");
+  const [yourStatus, setYourStatus] = useState("edit status here");
 
   // Track if this tab is active
   const [viewingBonk, setViewingBonk] = useState(
     () => document.visibilityState === "visible"
   );
-  
+
   useEffect(() => {
     const onVisibility = () =>
       setViewingBonk(document.visibilityState === "visible");
@@ -488,12 +488,14 @@ export default function Grid() {
                 style={{
                   position: "absolute",
                   top: -5,
-                  right: -5,
+                  right: -8,
                   background: "#ff2e97",
                   color: "#000",
                   fontSize: 10,
                   fontWeight: 700,
-                  width: 16,
+                  minWidth: 16,
+                  padding: "0 4px",
+                  boxSizing: "border-box",
                   height: 16,
                   borderRadius: 8,
                   display: "flex",
@@ -526,7 +528,7 @@ export default function Grid() {
       )}
 
       <div style={{ padding: "12px 24px 40px" }}>
-        
+
         {/* PREVIEW SCREEN */}
         {showPreview && (
           <div style={{ marginBottom: 12 }}>
@@ -634,7 +636,7 @@ export default function Grid() {
                 }}
               >
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  
+
                   {/* Name and live status */}
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                     <div style={{ fontSize: 14, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -733,7 +735,7 @@ export default function Grid() {
                   }}
                 >
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    
+
                     {/* Name and status */}
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                       <div style={{ fontSize: 12, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -775,7 +777,7 @@ export default function Grid() {
                       )}
                     </div>
                   </div>
-                  
+
                   {/* User buttons */}
                   {f.isYou && (
                     <div style={{ display: "flex", gap: 3, marginLeft: 6, flexShrink: 0 }}>
