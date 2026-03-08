@@ -15,6 +15,7 @@ function loadGoogleScript() {
       existing.addEventListener('error', reject, { once: true });
       return;
     }
+
     const script = document.createElement('script');
     script.id = 'google-gsi-script';
     script.src = 'https://accounts.google.com/gsi/client';
@@ -35,10 +36,12 @@ async function apiJson(url, options = {}) {
       ...(options.headers ?? {}),
     },
   });
+
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(payload.error || 'Sign in failed. Please try again.');
   }
+
   return payload;
 }
 
@@ -89,7 +92,7 @@ export default function Landing() {
           size: 'large',
           text: 'signin_with',
           shape: 'rectangular',
-          width: 380,
+          width: 320,
         });
       } catch (err) {
         if (!cancelled) {
@@ -107,74 +110,37 @@ export default function Landing() {
   }, [navigate]);
 
   return (
-    <div style={{
-      minHeight: '100dvh',
-      background: PRIMARY,
-      color: SECONDARY,
-      ...mono,
-      display: 'flex',
-      flexDirection: 'column',
-    }}
-    >
-      <nav style={{
-        padding: '22px clamp(24px, 5vw, 48px)',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        borderBottom: '1px solid #222',
-      }}
-      >
+    <div style={{ minHeight: '100dvh', background: PRIMARY, color: SECONDARY, ...mono, display: 'flex', flexDirection: 'column' }}>
+      <nav style={{ padding: '22px clamp(24px, 5vw, 48px)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #6a6a6a' }}>
         <span style={{ fontSize: 24, fontWeight: 700, color: SECONDARY, letterSpacing: -0.5 }}>bonk</span>
       </nav>
 
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexWrap: 'wrap',
-        padding: 'clamp(40px, 10vw, 80px) clamp(24px, 8vw, 60px)',
-        gap: 'clamp(40px, 8vw, 80px)',
-      }}
-      >
-        <div style={{ flex: '1 1 300px', maxWidth: 520, minWidth: 'min(100%, 300px)' }}>
-          <h1 style={{
-            fontSize: 'clamp(36px, 10vw, 64px)',
-            fontWeight: 700,
-            lineHeight: 1.2,
-            margin: 0,
-            color: SECONDARY,
-            wordBreak: 'break-word',
-            ...mono,
-          }}
-          >
-            Share screens,
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', padding: 'clamp(40px, 10vw, 80px) clamp(60px, 15vw, 160px)', gap: 'clamp(40px, 8vw, 80px)' }}>
+        <div style={{ flex: '1 1 260px', maxWidth: 380, minWidth: 'min(100%, 260px)' }}>
+          <h1 style={{ fontSize: 'clamp(36px, 10vw, 45px)', fontWeight: 700, lineHeight: 1.2, margin: 0, color: SECONDARY, wordBreak: 'break-word', ...mono }}>
+            Share screens.
             <br />
             <span style={{ color: SECONDARY_ACCENT }}>Stay focused.</span>
           </h1>
-          <p style={{
-            color: '#999',
-            fontSize: 'clamp(14px, 4vw, 18px)',
-            lineHeight: 1.8,
-            margin: '24px 0 40px',
-            maxWidth: 460,
-          }}
-          >
+          <p style={{ color: '#999', fontSize: 'clamp(12px, 3vw, 14px)', lineHeight: 1.6, margin: '16px 0 28px', maxWidth: 460 }}>
             Addicted to your devices? More focused with others around? Meet <span style={{ fontStyle: 'italic' }}>bonk</span>, a place where your friends monitor your screen as you work.
           </p>
 
-          <div style={{ border: '1px solid #333', padding: 'clamp(20px, 5vw, 32px)', background: PRIMARY }}>
-            <div ref={googleBtnRef} style={{ width: '100%', maxWidth: 420 }} />
-            {loadingAuth && (
-              <p style={{ color: '#999', fontSize: 14, marginTop: 14 }}>Initializing Google sign-in...</p>
-            )}
-            {authError && (
-              <p style={{ color: SECONDARY_ACCENT, fontSize: 14, marginTop: 14 }}>{authError}</p>
-            )}
+          <div style={{ border: '1px solid #6a6a6a', padding: '16px', background: PRIMARY }}>
+            <div ref={googleBtnRef} style={{ width: '100%', display: 'flex', justifyContent: 'center' }} />
+            {loadingAuth && <p style={{ color: '#999', fontSize: 11, lineHeight: 1.6, margin: '12px 0 0' }}>Initializing Google sign-in...</p>}
+            {authError && <p style={{ color: SECONDARY_ACCENT, fontSize: 11, lineHeight: 1.6, margin: '12px 0 0' }}>{authError}</p>}
+            <p style={{ color: '#999', fontSize: 11, lineHeight: 1.6, margin: '12px 0 0' }}>
+              by continuing you agree to the{' '}
+              <a href="#" style={{ color: SECONDARY_ACCENT, textDecoration: 'none' }}>privacy policy</a>.
+            </p>
           </div>
+        </div>
+
+        <div style={{ flex: '1 1 260px', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', minWidth: 'min(100%, 260px)' }}>
+          <img style={{ width: '100%', maxWidth: 600, objectFit: 'contain', border: '1px solid #6a6a6a' }} src="/demo.png" alt="Demo Screenshot" />
         </div>
       </div>
     </div>
   );
 }
-

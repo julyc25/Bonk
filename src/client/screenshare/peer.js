@@ -77,7 +77,10 @@ export function createInboundPeer(sharerId) {
 
   pc.ontrack = (event) => {
     if (onRemoteStream && event.streams[0]) {
-      onRemoteStream(sharerId, event.streams[0]);
+      const stream = event.streams[0] || new MediaStream([event.track]);
+      if (onRemoteStream && stream) {
+        onRemoteStream(sharerId, stream);
+      }
     }
   };
 
