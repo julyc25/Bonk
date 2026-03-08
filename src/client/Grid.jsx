@@ -102,7 +102,7 @@ const Screen = ({ name, isBlurred, isOff, isViewingBonk, snapshotUrl }) => {
       >
         <div style={{ textAlign: "center" }}>
           <div style={{ fontSize: 11, color: "#ff2e97", ...mono, marginBottom: 3 }}>
-            ⚠ viewing bonk
+            [viewing bonk]
           </div>
           <div style={{ fontSize: 10, color: "#6a6a6a", ...mono }}>
             screen paused
@@ -463,7 +463,6 @@ export default function Grid() {
   const [friends, setFriends] = useState([]);
   const [requests, setRequests] = useState([]);
   const [addEmail, setAddEmail] = useState("");
-  const [showPreview, setShowPreview] = useState(false);
   const [yourStatus, setYourStatus] = useState("");
   const [loadingFriends, setLoadingFriends] = useState(true);
   const [toast, setToast] = useState(null);
@@ -657,7 +656,7 @@ export default function Grid() {
       }
     });
 
-    // ── WebRTC signaling events ──
+    // WebRTC signaling events
 
     setOnRemoteStream((sharerId, stream) => {
       setPeerUnavailable((prev) => {
@@ -882,7 +881,6 @@ export default function Grid() {
     }
     socket.emit("user:stoplive");
     setScreenOn(false);
-    setShowPreview(false);
     setExpandedId(null);
   };
 
@@ -891,8 +889,8 @@ export default function Grid() {
     if (screenOn) {
       stopLiveSession();
     } else {
-      setShowPreview(true);
       setExpandedId(null);
+      void handleConfirmLive();
     }
   };
 
@@ -905,18 +903,15 @@ export default function Grid() {
 
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { displaySurface: "monitor" },
+        video: {
+          displaySurface: "monitor",
+          monitorTypeSurfaces: "include",
+          preferCurrentTab: false,
+          selfBrowserSurface: "exclude",
+        },
         audio: false,
       });
       const track = stream.getVideoTracks()[0];
-
-      if (track.getSettings().displaySurface !== "monitor") {
-        track.stop();
-        setToast("Please share your entire screen.");
-        setTimeout(() => setToast(null), 5000);
-        await new Promise((r) => setTimeout(r, 300));
-        return handleConfirmLive();
-      }
 
       realTrackRef.current = track;
 
@@ -925,7 +920,6 @@ export default function Grid() {
       };
 
       setScreenOn(true);
-      setShowPreview(false);
       setExpandedId(currentUser?.id ?? null);
       socket.emit("user:golive");
 
@@ -944,25 +938,13 @@ export default function Grid() {
       );
     } catch (err) {
       console.warn("[bonk] screen capture cancelled:", err);
-      setShowPreview(false);
     }
   };
-
-  const handleCancelPreview = () => setShowPreview(false);
 
   const expanded = expandedId
     ? friends.find((f) => f.id === expandedId)
     : null;
   const expandedCanBonk = Boolean(expanded && !expanded.isYou && isViewable(expanded));
-
-  const youData = friends.find((f) => f.isYou) ?? {
-    id: currentUser?.id || "you",
-    name: currentUser?.name || "You",
-    status: "",
-    isYou: true,
-    live: false,
-    online: true,
-  };
 
   const sortedFriends = useMemo(() => {
     const you = friends.filter((f) => f.isYou);
@@ -1059,88 +1041,8 @@ export default function Grid() {
             loading friends...
           </div>
         )}
-
-        {/* PREVIEW SCREEN */}
-        {showPreview && (
-          <div style={{ maxWidth: 800, margin: "0 auto 12px" }}>
-            <div
-              style={{
-                border: "1px dashed #ff2e97",
-                background: "#000",
-                position: "relative",
-              }}
-            >
-              <div
-                style={{
-                  position: "absolute",
-                  top: 6,
-                  left: 8,
-                  zIndex: 10,
-                  border: "1px solid #ff2e97",
-                  color: "#ff2e97",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  padding: "2px 8px",
-                  background: "#000",
-                  ...mono,
-                }}
-              >
-                PREVIEW — only you see this
-              </div>
-              <CloseBtn onClick={handleCancelPreview} />
-              <div style={{ aspectRatio: "16/9", width: "100%" }}>
-                <Screen
-                  name={youData.name}
-                  isBlurred={blurred}
-                  isOff={false}
-                  isViewingBonk={viewingBonk}
-                  snapshotUrl={snapshotUrls[currentUser?.id]}
-                />
-              </div>
-              <div
-                style={{
-                  borderTop: "1px solid #222",
-                  padding: "8px 10px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                }}
-              >
-                <div style={{ fontSize: 14, color: "#fff" }}>
-                  {youData.name}{" "}
-                  <span style={{ color: "#ff2e97", fontSize: 12 }}>
-                    preview
-                  </span>
-                </div>
-                <div style={{ display: "flex", gap: 4 }}>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setBlurred(!blurred);
-                    }}
-                    style={blurred ? btnPink : btn}
-                  >
-                    {blurred ? "[unblur]" : "[blur]"}
-                  </button>
-                  <button
-                    onClick={handleConfirmLive}
-                    style={{
-                      ...btnGreen,
-                      background: "#39ff14",
-                      color: "#000",
-                      fontWeight: 700,
-                    }}
-                  >
-                    confirm &amp; go live
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* EXPANDED SCREEN */}
-        {expanded && !showPreview && (
+        {expanded && (
           <div style={{ maxWidth: 800, margin: "0 auto 12px" }}>
             <div
               style={{
@@ -1201,7 +1103,7 @@ export default function Grid() {
                           ...mono,
                         }}
                       >
-                        ● {isViewable(expanded) ? "live" : "not live"}
+                        * {isViewable(expanded) ? "live" : "not live"}
                       </span>
                     )}
                   </div>
@@ -1390,7 +1292,7 @@ export default function Grid() {
                             ...mono,
                           }}
                         >
-                          ● {viewable ? "live" : "not live"}
+                          * {viewable ? "live" : "not live"}
                         </span>
                       )}
                     </div>
@@ -1468,4 +1370,3 @@ export default function Grid() {
     </div>
   );
 }
-
