@@ -1,6 +1,19 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import socket from "./socket.js";
 import { startSnapshotWorker, stopSnapshotWorker } from "./screenshare/snapshots.js";
+import {
+  createOutboundPeer,
+  replaceOutboundTrack,
+  closeAllOutbound,
+  closeInbound,
+  closeAllPeers,
+  handleOffer,
+  handleAnswer,
+  handleIce,
+  setOnRemoteStream,
+  setOnRemoteStreamRemoved,
+  createInboundPeer,
+} from "./screenshare/peer.js";
 
 
 export const mono = { fontFamily: "monospace" };
@@ -10,32 +23,35 @@ const SECONDARY_ACCENT = '#ff2e97';
 const SECONDARY = '#FFF';
 
 
+// TODO: Hardcoded for now, will do auth later.
+// Use ?user=emily@gmail.com (or any friend ID) to test as a different user.
+const USER_ID = new URLSearchParams(window.location.search).get("user") || "you@gmail.com";
+
+// All known users — shared directory until auth/DB is wired up.
+const ALL_USERS = {
+  "you@gmail.com":     { name: "You",     status: "edit status here" },
+  "emily@gmail.com":   { name: "Emily",   status: "doing 100 CS 2800 proofs" },
+  "clarice@gmail.com": { name: "Clarice", status: "slacking off" },
+  "julie@gmail.com":   { name: "Julie",   status: "making a cpu simulator for CS 3410" },
+};
+
+// Friend graph (mirrors src/server/friends.js)
+const FRIEND_GRAPH = {
+  "you@gmail.com":     ["emily@gmail.com", "clarice@gmail.com", "julie@gmail.com"],
+  "emily@gmail.com":   ["you@gmail.com", "clarice@gmail.com", "julie@gmail.com"],
+  "clarice@gmail.com": ["you@gmail.com", "emily@gmail.com"],
+  "julie@gmail.com":   ["you@gmail.com", "emily@gmail.com"],
+};
+
+// Build FRIENDS dynamically: current user first (isYou), then their friends.
+const myFriendIds = FRIEND_GRAPH[USER_ID] ?? [];
+const me = ALL_USERS[USER_ID] ?? { name: USER_ID, status: "" };
 const FRIENDS = [
- {
-   id: "you@gmail.com",
-   name: "You",
-   status: "edit status here",
-   isYou: true,
-   live: false,
- },
- {
-   id: "emily@gmail.com",
-   name: "Emily",
-   status: "doing 100 CS 2800 proofs",
-   live: true,
- },
- {
-   id: "clarice@gmail.com",
-   name: "Clarice",
-   status: "slacking off",
-   live: false,
- },
- {
-   id: "julie@gmail.com",
-   name: "Julie",
-   status: "making a cpu simulator for CS 3410",
-   live: true,
- }
+  { id: USER_ID, name: me.name, status: me.status, isYou: true, live: false },
+  ...myFriendIds.map((fid) => {
+    const u = ALL_USERS[fid] ?? { name: fid, status: "" };
+    return { id: fid, name: u.name, status: u.status, live: false };
+  }),
 ];
 
 
@@ -64,9 +80,6 @@ const btnDanger = {
  color: "#000",
 };
 
-
-// TODO: Hardcoded for now, will do auth later.
-const USER_ID = "you@gmail.com";
 
 const Screen = ({ name, isBlurred, isOff, isViewingBonk, snapshotUrl }) => {
  // Shows a black screen when not live
@@ -191,6 +204,37 @@ const CloseBtn = ({ onClick }) => (
    x
  </button>
 );
+
+
+/** Video element that auto-attaches a MediaStream via ref. */
+const ExpandedVideo = ({ stream }) => {
+ const videoRef = useRef(null);
+ useEffect(() => {
+   if (videoRef.current && stream) {
+     videoRef.current.srcObject = stream;
+   }
+   return () => {
+     if (videoRef.current) {
+       videoRef.current.srcObject = null;
+     }
+   };
+ }, [stream]);
+ return (
+   <video
+     ref={videoRef}
+     autoPlay
+     playsInline
+     muted
+     style={{
+       width: "100%",
+       height: "100%",
+       objectFit: "cover",
+       display: "block",
+       background: "#000",
+     }}
+   />
+ );
+};
 
 
 // Editable status for user
@@ -430,6 +474,11 @@ export default function Grid() {
  /** Hold the real video track so we can stop it later */
  const realTrackRef = useRef(null);
 
+ /** Remote MediaStreams keyed by sharer userId */
+ const remoteStreamsRef = useRef({});
+ /** Counter to force re-render when remote streams change */
+ const [remoteStreamVersion, setRemoteStreamVersion] = useState(0);
+
  /** Socket connection lifecycle */
  useEffect(() => {
    socket.connect();
@@ -478,10 +527,54 @@ export default function Grid() {
      }
    });
 
+   /** Register callbacks so peer.js can push streams into our ref */
+   setOnRemoteStream((sharerId, stream) => {
+     remoteStreamsRef.current[sharerId] = stream;
+     setRemoteStreamVersion((v) => v + 1);
+   });
+   setOnRemoteStreamRemoved((sharerId) => {
+     delete remoteStreamsRef.current[sharerId];
+     setRemoteStreamVersion((v) => v + 1);
+   });
+
+   /**
+    * A friend just went live and is about to send us an offer.
+    * Pre-create an inbound peer so it's ready when the offer arrives.
+    */
+   socket.on("peer:request-offer", ({ fromId }) => {
+     createInboundPeer(fromId);
+   });
+
+   /** Incoming SDP offer (we are the viewer). */
+   socket.on("peer:offer", ({ fromId, sdp }) => {
+     handleOffer(fromId, sdp);
+   });
+
+   /** Incoming SDP answer (we are the sharer). */
+   socket.on("peer:answer", ({ fromId, sdp }) => {
+     handleAnswer(fromId, sdp);
+   });
+
+   /** Incoming ICE candidate. */
+   socket.on("peer:ice", ({ fromId, candidate }) => {
+     handleIce(fromId, candidate);
+   });
+
+   /** A sharer stopped, so tear down their inbound peer. */
+   socket.on("peer:sharer-stopped", ({ sharerId }) => {
+     closeInbound(sharerId);
+   });
+
    return () => {
      socket.off("snapshot:update");
      socket.off("presence:init");
      socket.off("presence:update");
+     socket.off("peer:request-offer");
+     socket.off("peer:offer");
+     socket.off("peer:answer");
+     socket.off("peer:ice");
+     socket.off("peer:sharer-stopped");
+     closeAllPeers();
      socket.disconnect();
    };
  }, []);
@@ -528,6 +621,7 @@ export default function Grid() {
    if (screenOn) {
      // Stop sharing
      stopSnapshotWorker();
+     closeAllOutbound();
      if (realTrackRef.current) {
        realTrackRef.current.stop();
        realTrackRef.current = null;
@@ -565,6 +659,7 @@ export default function Grid() {
      // If the user stops sharing via browser UI, clean up
      track.onended = () => {
        stopSnapshotWorker();
+       closeAllOutbound();
        socket.emit("user:stoplive");
        realTrackRef.current = null;
        setScreenOn(false);
@@ -576,6 +671,12 @@ export default function Grid() {
      setShowPreview(false);
      setExpandedId(USER_ID);
      socket.emit("user:golive");
+
+     // Create outbound WebRTC peer connections to all online friends
+     const onlineFriends = friends.filter((f) => !f.isYou && f.online !== false);
+     for (const f of onlineFriends) {
+       createOutboundPeer(f.id, track);
+     }
 
      startSnapshotWorker(
        track,
@@ -785,13 +886,18 @@ export default function Grid() {
            >
              <CloseBtn onClick={() => setExpandedId(null)} />
              <div style={{ aspectRatio: "16/9", width: "100%" }}>
-               <Screen
-                 name={expanded.name}
-                 isBlurred={expanded.isYou ? blurred : false}
-                 isOff={expanded.isYou ? !screenOn : false}
-                 isViewingBonk={expanded.isYou ? viewingBonk : false}
-                 snapshotUrl={snapshotUrls[expanded.id]}
-               />
+               {/* Use live video for friends with an active remote stream */}
+               {!expanded.isYou && remoteStreamsRef.current[expanded.id] ? (
+                 <ExpandedVideo stream={remoteStreamsRef.current[expanded.id]} />
+               ) : (
+                 <Screen
+                   name={expanded.name}
+                   isBlurred={expanded.isYou ? blurred : false}
+                   isOff={expanded.isYou ? !screenOn : false}
+                   isViewingBonk={expanded.isYou ? viewingBonk : false}
+                   snapshotUrl={snapshotUrls[expanded.id]}
+                 />
+               )}
              </div>
              <div
                style={{

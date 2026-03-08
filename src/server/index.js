@@ -3,6 +3,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { createSnapshotRouter, clearSnapshot } from './snapshots.js';
 import { registerPresence } from './presence.js';
+import { registerSignaling } from './signaling.js';
 
 const PORT = 3001;
 
@@ -17,6 +18,7 @@ app.use(createSnapshotRouter(io));
 
 /** Initialize Socket.io. */
 registerPresence(io);
+registerSignaling(io);
 
 /** Clean up snapshot when user stops live, and hook into socket event. */
 io.on('connection', (socket) => {
