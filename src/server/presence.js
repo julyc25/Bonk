@@ -1,24 +1,30 @@
-import { getFriends } from './friends.js';
+import { getFriends, hasUser, normalizeUserId } from './friends.js';
 
 /** Map of user ids of online users to socket id. */
 const onlineUsers = new Map();
 /** Set of user ids currently sharing their screen. */
 const liveUsers = new Set();
 
-/** 
- * {io} is the server. 
- */
 export function registerPresence(io) {
   io.on('connection', (socket) => {
-    let userId = null;
+    const userId = normalizeUserId(socket.data.authUser?.id);
+    let isRegisteredOnline = false;
 
-    socket.on('user:online', (id) => {
-      userId = id;
+    socket.on('user:online', () => {
+      if (!hasUser(userId)) {
+        socket.emit('presence:error', { message: 'Could not verify this user. Please sign in again.' });
+        return;
+      }
+
+      const existingSocketId = onlineUsers.get(userId);
+      if (existingSocketId && existingSocketId !== socket.id) {
+        const existingSocket = io.sockets.sockets.get(existingSocketId);
+        if (existingSocket) existingSocket.disconnect(true);
+      }
+
       onlineUsers.set(userId, socket.id);
-      //Join a room named after the userId for targeted emits
-      socket.join(userId); 
+      socket.join(userId);
 
-      // Tell this user which of their friends are currently live
       const friendIds = getFriends(userId);
       const liveFriends = friendIds.filter((fid) => liveUsers.has(fid));
       socket.emit('presence:init', {
@@ -26,7 +32,9 @@ export function registerPresence(io) {
         liveFriends,
       });
 
-      // Notify friends that this user came online
+      if (isRegisteredOnline) return;
+      isRegisteredOnline = true;
+
       for (const fid of friendIds) {
         io.to(fid).emit('presence:update', {
           userId,
@@ -37,7 +45,7 @@ export function registerPresence(io) {
     });
 
     socket.on('user:golive', () => {
-      if (!userId) return;
+      if (!hasUser(userId)) return;
       liveUsers.add(userId);
       const friendIds = getFriends(userId);
       for (const fid of friendIds) {
@@ -50,7 +58,7 @@ export function registerPresence(io) {
     });
 
     socket.on('user:stoplive', () => {
-      if (!userId) return;
+      if (!hasUser(userId)) return;
       liveUsers.delete(userId);
       const friendIds = getFriends(userId);
       for (const fid of friendIds) {
@@ -63,8 +71,10 @@ export function registerPresence(io) {
     });
 
     socket.on('disconnect', () => {
-      if (!userId) return;
-      onlineUsers.delete(userId);
+      if (!hasUser(userId)) return;
+      if (onlineUsers.get(userId) === socket.id) {
+        onlineUsers.delete(userId);
+      }
       liveUsers.delete(userId);
       const friendIds = getFriends(userId);
       for (const fid of friendIds) {
@@ -74,7 +84,7 @@ export function registerPresence(io) {
           live: false,
         });
       }
-      userId = null;
+      isRegisteredOnline = false;
     });
   });
 }
@@ -86,3 +96,4 @@ export function getOnlineUsers() {
 export function getLiveUsers() {
   return liveUsers;
 }
+

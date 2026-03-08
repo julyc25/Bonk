@@ -1,9 +1,9 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import socket from "./socket.js";
 import { startSnapshotWorker, stopSnapshotWorker } from "./screenshare/snapshots.js";
 import {
   createOutboundPeer,
-  replaceOutboundTrack,
   closeAllOutbound,
   closeInbound,
   closeAllPeers,
@@ -15,49 +15,50 @@ import {
   createInboundPeer,
 } from "./screenshare/peer.js";
 
-export const mono = { fontFamily: "monospace" };
+const mono = { fontFamily: "monospace" };
 
 const PRIMARY = '#000';
 const PRIMARY_ACCENT = '#555';
 const SECONDARY_ACCENT = '#ff2e97';
 const SECONDARY = '#FFF';
 
-// TODO: Hardcoded for now, will do auth later.
-// Use ?user=emily@gmail.com (or any friend ID) to test as a different user.
-const USER_ID = new URLSearchParams(window.location.search).get("user") || "you@gmail.com";
+async function apiJson(url, options = {}) {
+  const response = await fetch(url, {
+    credentials: "include",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers ?? {}),
+    },
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const err = new Error(payload.error || "Couldn't complete that request. Please try again.");
+    err.status = response.status;
+    throw err;
+  }
+  return payload;
+}
 
-// All known users — shared directory until auth/DB is wired up.
-const ALL_USERS = {
-  "you@gmail.com":     { name: "You",     status: "edit status here" },
-  "emily@gmail.com":   { name: "Emily",   status: "doing 100 CS 2800 proofs" },
-  "clarice@gmail.com": { name: "Clarice", status: "slacking off" },
-  "julie@gmail.com":   { name: "Julie",   status: "making a cpu simulator for CS 3410" },
-};
-
-// Friend graph (mirrors src/server/friends.js)
-const FRIEND_GRAPH = {
-  "you@gmail.com":     ["emily@gmail.com", "clarice@gmail.com", "julie@gmail.com"],
-  "emily@gmail.com":   ["you@gmail.com", "clarice@gmail.com", "julie@gmail.com"],
-  "clarice@gmail.com": ["you@gmail.com", "emily@gmail.com"],
-  "julie@gmail.com":   ["you@gmail.com", "emily@gmail.com"],
-};
-
-// Build FRIENDS dynamically: current user first (isYou), then their friends.
-const myFriendIds = FRIEND_GRAPH[USER_ID] ?? [];
-const me = ALL_USERS[USER_ID] ?? { name: USER_ID, status: "" };
-const FRIENDS = [
-  { id: USER_ID, name: me.name, status: me.status, isYou: true, live: false },
-  ...myFriendIds.map((fid) => {
-    const u = ALL_USERS[fid] ?? { name: fid, status: "" };
-    return { id: fid, name: u.name, status: u.status, live: false };
-  }),
-];
-
-const FRIEND_REQUESTS = [
-  { id: "michelle@gmail.com", name: "Michelle" },
-  { id: "yiwen@gmail.com", name: "Yiwen" },
-  { id: "namitha@gmail.com", name: "Namitha" },
-];
+function normalizeFriendModel(self, friends) {
+  const you = {
+    id: self.id,
+    name: self.name || self.id,
+    status: self.status || "",
+    isYou: true,
+    live: false,
+    online: true,
+  };
+  const others = (friends ?? []).map((friend) => ({
+    id: friend.id,
+    name: friend.name || friend.id,
+    status: friend.status || "",
+    isYou: false,
+    live: false,
+    online: false,
+  }));
+  return [you, ...others];
+}
 
 const btn = {
   background: PRIMARY,
@@ -193,12 +194,13 @@ const CloseBtn = ({ onClick }) => (
 const ExpandedVideo = ({ stream }) => {
   const videoRef = useRef(null);
   useEffect(() => {
-    if (videoRef.current && stream) {
-      videoRef.current.srcObject = stream;
+    const node = videoRef.current;
+    if (node && stream) {
+      node.srcObject = stream;
     }
     return () => {
-      if (videoRef.current) {
-        videoRef.current.srcObject = null;
+      if (node) {
+        node.srcObject = null;
       }
     };
   }, [stream]);
@@ -425,15 +427,18 @@ const FriendsPanel = ({
 
 
 export default function Grid() {
+  const navigate = useNavigate();
   const [blurred, setBlurred] = useState(false);
   const [screenOn, setScreenOn] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
   const [showFriends, setShowFriends] = useState(false);
-  const [friends, setFriends] = useState(FRIENDS);
-  const [requests, setRequests] = useState(FRIEND_REQUESTS);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [friends, setFriends] = useState([]);
+  const [requests, setRequests] = useState([]);
   const [addEmail, setAddEmail] = useState("");
   const [showPreview, setShowPreview] = useState(false);
-  const [yourStatus, setYourStatus] = useState("edit status here");
+  const [yourStatus, setYourStatus] = useState("");
+  const [loadingFriends, setLoadingFriends] = useState(true);
   const [toast, setToast] = useState(null);
 
   // Track if this tab is active
@@ -451,6 +456,20 @@ export default function Grid() {
   /** Snapshot URLs keyed by friend userId */
   const [snapshotUrls, setSnapshotUrls] = useState({});
 
+  /** Latest presence snapshot from socket, used to avoid races with initial friends fetch. */
+  const onlineFriendsRef = useRef(new Set());
+  const liveFriendsRef = useRef(new Set());
+
+  const applyPresenceToFriends = (friendList) =>
+    friendList.map((friend) => {
+      if (friend.isYou) return { ...friend, online: true };
+      return {
+        ...friend,
+        online: onlineFriendsRef.current.has(friend.id),
+        live: liveFriendsRef.current.has(friend.id),
+      };
+    });
+
   /** Ref so the snapshot worker can read the latest viewingBonk without restarting */
   const viewingBonkRef = useRef(viewingBonk);
   useEffect(() => { viewingBonkRef.current = viewingBonk; }, [viewingBonk]);
@@ -459,14 +478,49 @@ export default function Grid() {
   const realTrackRef = useRef(null);
 
   /** Remote MediaStreams keyed by sharer userId */
-  const remoteStreamsRef = useRef({});
-  /** Counter to force re-render when remote streams change */
-  const [remoteStreamVersion, setRemoteStreamVersion] = useState(0);
+  const [remoteStreams, setRemoteStreams] = useState({});
+
+  /** Load friend graph and pending requests from backend. */
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadFriends() {
+      try {
+        setLoadingFriends(true);
+        const mePayload = await apiJson("/api/me");
+        if (cancelled) return;
+        setCurrentUser(mePayload.user);
+
+        const payload = await apiJson("/api/friends");
+        if (cancelled) return;
+        setFriends(applyPresenceToFriends(normalizeFriendModel(payload.self, payload.friends)));
+        setRequests(payload.requests ?? []);
+        setYourStatus(payload.self?.status || "edit status here");
+      } catch (err) {
+        if (cancelled) return;
+        if (err.status === 401) {
+          navigate("/");
+          return;
+        }
+        setToast(err instanceof Error ? err.message : "Couldn't load your friends right now.");
+        setTimeout(() => setToast(null), 4000);
+      } finally {
+        if (!cancelled) setLoadingFriends(false);
+      }
+    }
+
+    loadFriends();
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate]);
 
   /** Socket connection lifecycle */
   useEffect(() => {
+    if (!currentUser?.id) return undefined;
+
     socket.connect();
-    socket.emit("user:online", USER_ID);
+    socket.emit("user:online");
 
     /** When a friend's snapshot is updated, refresh the URL. */
     socket.on("snapshot:update", ({ userId, timestamp }) => {
@@ -476,12 +530,22 @@ export default function Grid() {
       }));
     });
 
+    socket.on("presence:error", ({ message }) => {
+      setToast(message || "Couldn't update your online status.");
+      setTimeout(() => setToast(null), 4000);
+    });
+
+    socket.on("signaling:error", ({ message }) => {
+      setToast(message || "Couldn't start live sharing.");
+      setTimeout(() => setToast(null), 4000);
+    });
+
     /** Init presence, mark friends as live/online */
-    socket.on("presence:init", ({ liveFriends }) => {
+    socket.on("presence:init", ({ onlineFriends = [], liveFriends = [] }) => {
+      onlineFriendsRef.current = new Set(onlineFriends);
+      liveFriendsRef.current = new Set(liveFriends);
       setFriends((prev) =>
-        prev.map((f) =>
-          liveFriends.includes(f.id) ? { ...f, live: true } : f
-        )
+        applyPresenceToFriends(prev)
       );
       for (const fid of liveFriends) {
         setSnapshotUrls((prev) => ({
@@ -493,6 +557,18 @@ export default function Grid() {
 
     /** Change in a friend's presence */
     socket.on("presence:update", ({ userId, online, live }) => {
+      if (online === false) {
+        onlineFriendsRef.current.delete(userId);
+        liveFriendsRef.current.delete(userId);
+      } else {
+        if (online) onlineFriendsRef.current.add(userId);
+        if (live) {
+          liveFriendsRef.current.add(userId);
+        } else {
+          liveFriendsRef.current.delete(userId);
+        }
+      }
+
       setFriends((prev) => {
         const exists = prev.some((f) => f.id === userId);
         if (!exists) return prev;
@@ -512,12 +588,14 @@ export default function Grid() {
     // ── WebRTC signaling events ──
 
     setOnRemoteStream((sharerId, stream) => {
-      remoteStreamsRef.current[sharerId] = stream;
-      setRemoteStreamVersion((v) => v + 1);
+      setRemoteStreams((prev) => ({ ...prev, [sharerId]: stream }));
     });
     setOnRemoteStreamRemoved((sharerId) => {
-      delete remoteStreamsRef.current[sharerId];
-      setRemoteStreamVersion((v) => v + 1);
+      setRemoteStreams((prev) => {
+        const next = { ...prev };
+        delete next[sharerId];
+        return next;
+      });
     });
 
     socket.on("peer:request-offer", ({ fromId }) => {
@@ -544,32 +622,74 @@ export default function Grid() {
       socket.off("snapshot:update");
       socket.off("presence:init");
       socket.off("presence:update");
+      socket.off("presence:error");
+      socket.off("signaling:error");
       socket.off("peer:request-offer");
       socket.off("peer:offer");
       socket.off("peer:answer");
       socket.off("peer:ice");
       socket.off("peer:sharer-stopped");
       closeAllPeers();
+      setRemoteStreams({});
       socket.disconnect();
     };
-  }, []);
+  }, [currentUser?.id]);
 
-  const handleAccept = (id) => {
-    const r = requests.find((x) => x.id === id);
-    if (r) {
-      setFriends((prev) => [
-        ...prev,
-        { id: r.id, name: r.name, status: "", live: false },
-      ]);
+  const handleAccept = async (id) => {
+    try {
+      const payload = await apiJson("/api/friends/accept", {
+        method: "POST",
+        body: JSON.stringify({ requestId: id }),
+      });
+      setFriends((prev) => {
+        const self = prev.find((f) => f.isYou);
+        if (!self) return prev;
+        const previousById = new Map(prev.map((friend) => [friend.id, friend]));
+        const others = (payload.friends ?? []).map((friend) => ({
+          id: friend.id,
+          name: friend.name || friend.id,
+          status: friend.status || "",
+          isYou: false,
+          live: previousById.get(friend.id)?.live ?? false,
+          online: previousById.get(friend.id)?.online ?? false,
+        }));
+        return [self, ...others];
+      });
+      setRequests(payload.requests ?? []);
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Couldn't accept that request.");
+      setTimeout(() => setToast(null), 4000);
     }
-    setRequests((prev) => prev.filter((x) => x.id !== id));
   };
 
-  const handleDecline = (id) =>
-    setRequests((prev) => prev.filter((x) => x.id !== id));
+  const handleDecline = async (id) => {
+    try {
+      const payload = await apiJson("/api/friends/decline", {
+        method: "POST",
+        body: JSON.stringify({ requestId: id }),
+      });
+      setRequests(payload.requests ?? []);
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Couldn't decline that request.");
+      setTimeout(() => setToast(null), 4000);
+    }
+  };
 
-  const handleAdd = () => {
-    if (addEmail.trim()) setAddEmail("");
+  const handleAdd = async () => {
+    const email = addEmail.trim().toLowerCase();
+    if (!email) return;
+    try {
+      await apiJson("/api/friends/add", {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      });
+      setAddEmail("");
+      setToast("Friend request sent.");
+      setTimeout(() => setToast(null), 3000);
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Couldn't send friend request.");
+      setTimeout(() => setToast(null), 4000);
+    }
   };
 
   const isViewable = (f) => (f.isYou ? screenOn : f.live);
@@ -601,6 +721,12 @@ export default function Grid() {
   };
 
   const handleConfirmLive = async () => {
+    if (!currentUser?.id) {
+      setToast("Please sign in again.");
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: { displaySurface: "monitor" },
@@ -630,17 +756,20 @@ export default function Grid() {
 
       setScreenOn(true);
       setShowPreview(false);
-      setExpandedId(USER_ID);
+      setExpandedId(currentUser?.id ?? null);
       socket.emit("user:golive");
 
-      const onlineFriends = friends.filter((f) => !f.isYou && f.online !== false);
+      const onlineFriendIds = onlineFriendsRef.current;
+      const onlineFriends = friends.filter(
+        (f) => !f.isYou && (onlineFriendIds.size === 0 || onlineFriendIds.has(f.id))
+      );
       for (const f of onlineFriends) {
         createOutboundPeer(f.id, track);
       }
 
       startSnapshotWorker(
         track,
-        USER_ID,
+        currentUser?.id,
         () => viewingBonkRef.current
       );
     } catch (err) {
@@ -655,7 +784,14 @@ export default function Grid() {
     ? friends.find((f) => f.id === expandedId)
     : null;
 
-  const youData = friends.find((f) => f.isYou);
+  const youData = friends.find((f) => f.isYou) ?? {
+    id: currentUser?.id || "you",
+    name: currentUser?.name || "You",
+    status: "",
+    isYou: true,
+    live: false,
+    online: true,
+  };
 
   const sortedFriends = useMemo(() => {
     const you = friends.filter((f) => f.isYou);
@@ -663,7 +799,7 @@ export default function Grid() {
     const live = others.filter((f) => f.live);
     const notLive = others.filter((f) => !f.live);
     return [...you, ...live, ...notLive];
-  }, [friends, screenOn]);
+  }, [friends]);
 
   return (
     <div
@@ -749,6 +885,12 @@ export default function Grid() {
       )}
 
       <div style={{ padding: "12px 24px 40px" }}>
+        {loadingFriends && (
+          <div style={{ color: PRIMARY_ACCENT, fontSize: 12, marginBottom: 8 }}>
+            loading friends...
+          </div>
+        )}
+
         {/* PREVIEW SCREEN */}
         {showPreview && (
           <div style={{ maxWidth: 800, margin: "0 auto 12px" }}>
@@ -783,7 +925,7 @@ export default function Grid() {
                   isBlurred={blurred}
                   isOff={false}
                   isViewingBonk={viewingBonk}
-                  snapshotUrl={snapshotUrls[USER_ID]}
+                  snapshotUrl={snapshotUrls[currentUser?.id]}
                 />
               </div>
               <div
@@ -838,8 +980,8 @@ export default function Grid() {
               <CloseBtn onClick={() => setExpandedId(null)} />
               <div style={{ aspectRatio: "16/9", width: "100%" }}>
                 {/* Use live <video> for friends with an active remote stream */}
-                {!expanded.isYou && remoteStreamsRef.current[expanded.id] ? (
-                  <ExpandedVideo stream={remoteStreamsRef.current[expanded.id]} />
+                {!expanded.isYou && remoteStreams[expanded.id] ? (
+                  <ExpandedVideo stream={remoteStreams[expanded.id]} />
                 ) : (
                   <Screen
                     name={expanded.name}
@@ -1045,3 +1187,4 @@ export default function Grid() {
     </div>
   );
 }
+

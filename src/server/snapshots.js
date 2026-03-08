@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { getFriends } from './friends.js';
+import { getFriends, hasUser, normalizeUserId } from './friends.js';
 
 /** Map user id to { buffer: Buffer, timestamp: number } */
 const store = new Map();
@@ -15,11 +15,14 @@ export function createSnapshotRouter(io) {
   // handles REST endpoints
   const router = Router();
 
-  // Client sends a JPEG blob and userId field
+  // Client sends a JPEG blob; user is read from authenticated session.
   router.post('/api/snapshot', upload.single('frame'), (req, res) => {
-    const userId = req.body.userId;
-    if (!userId || !req.file) {
-      return res.status(400).json({ error: 'missing userId or frame' });
+    const userId = normalizeUserId(req.authUser?.id);
+    if (!userId || !hasUser(userId) || !req.file) {
+      return res.status(400).json({ error: 'Please provide a valid user and image frame.' });
+    }
+    if (!req.file.mimetype?.startsWith('image/')) {
+      return res.status(415).json({ error: 'Unsupported file type. Please upload an image.' });
     }
 
     const entry = {
@@ -45,7 +48,7 @@ export function createSnapshotRouter(io) {
   router.get('/api/snapshot/:userId', (req, res) => {
     const entry = store.get(req.params.userId);
     if (!entry) {
-      return res.status(404).json({ error: 'no snapshot' });
+      return res.status(404).json({ error: 'No snapshot is available yet.' });
     }
     res.set('Content-Type', entry.contentType);
     res.set('Cache-Control', 'no-store');
