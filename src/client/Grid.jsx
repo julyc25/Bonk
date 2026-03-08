@@ -13,6 +13,7 @@ import {
   setOnRemoteStream,
   setOnRemoteStreamRemoved,
   createInboundPeer,
+  getOutboundPeers,
 } from "./screenshare/peer.js";
 
 export const mono = { fontFamily: "monospace" };
@@ -500,6 +501,9 @@ export default function Grid() {
           f.id === userId ? { ...f, live, online } : f
         );
       });
+      if (online && realTrackRef.current && !getOutboundPeers().has(userId)) {
+        createOutboundPeer(userId, realTrackRef.current);
+      }
       if (!live) {
         setSnapshotUrls((prev) => {
           const next = { ...prev };
@@ -518,10 +522,6 @@ export default function Grid() {
     setOnRemoteStreamRemoved((sharerId) => {
       delete remoteStreamsRef.current[sharerId];
       setRemoteStreamVersion((v) => v + 1);
-    });
-
-    socket.on("peer:request-offer", ({ fromId }) => {
-      createInboundPeer(fromId);
     });
 
     socket.on("peer:offer", ({ fromId, sdp }) => {

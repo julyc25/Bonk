@@ -13,21 +13,6 @@ export function registerSignaling(io) {
       userId = id;
     });
 
-    /**
-     * When a user goes live, tell each of their online friends to prepare an inbound peer.
-     */
-    socket.on('user:golive', () => {
-      if (!userId) return;
-      const friendIds = getFriends(userId);
-      const online = getOnlineUsers();
-      for (const fid of friendIds) {
-        if (online.has(fid)) {
-          // Tell the friend: "userId is about to send you an offer"
-          io.to(fid).emit('peer:request-offer', { fromId: userId });
-        }
-      }
-    });
-
     /** Relay SDP offer to the target peer. */
     socket.on('peer:offer', ({ toId, sdp }) => {
       if (!userId) return;
