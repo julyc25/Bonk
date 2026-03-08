@@ -863,7 +863,6 @@ export default function Grid() {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                     <div style={{ fontSize: 14, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {expanded.name}
-                      {expanded.isYou ? "*" : ""}
                     </div>
                     {!expanded.isYou && (
                       <span
@@ -958,7 +957,6 @@ export default function Grid() {
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                       <div style={{ fontSize: 12, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                         {f.name}
-                        {f.isYou ? "*" : ""}
                       </div>
                       {!f.isYou && (
                         <span
