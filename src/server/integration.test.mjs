@@ -163,6 +163,11 @@ async function testSignalingRelay() {
       const receivedFriendOffer = await friendOffer;
       assert.equal(receivedFriendOffer.fromId, 'emily@gmail.com');
 
+      const friendBonk = waitForEvent(you, 'peer:bonk');
+      emily.emit('peer:bonk', { toId: 'you@gmail.com' });
+      const receivedFriendBonk = await friendBonk;
+      assert.equal(receivedFriendBonk.fromId, 'emily@gmail.com');
+
       let blocked = false;
       try {
         await Promise.race([
@@ -177,6 +182,21 @@ async function testSignalingRelay() {
         blocked = true;
       }
       assert.equal(blocked, true);
+
+      let bonkBlocked = false;
+      try {
+        await Promise.race([
+          waitForEvent(michelle, 'peer:bonk', 500),
+          (async () => {
+            you.emit('peer:bonk', { toId: 'michelle@gmail.com' });
+            await new Promise((resolve) => setTimeout(resolve, 550));
+            return null;
+          })(),
+        ]);
+      } catch {
+        bonkBlocked = true;
+      }
+      assert.equal(bonkBlocked, true);
     } finally {
       you.disconnect();
       emily.disconnect();

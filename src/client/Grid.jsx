@@ -1,6 +1,7 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import socket from "./socket.js";
+import bonkSoundUrl from "../sound/bonk.mp3";
 import { startSnapshotWorker, stopSnapshotWorker } from "./screenshare/snapshots.js";
 import {
   createOutboundPeer,
@@ -22,6 +23,7 @@ const PRIMARY = '#000';
 const PRIMARY_ACCENT = '#555';
 const SECONDARY_ACCENT = '#ff2e97';
 const SECONDARY = '#FFF';
+const BONK_SOUND_URL = bonkSoundUrl;
 
 async function apiJson(url, options = {}) {
   const response = await fetch(url, {
@@ -186,6 +188,30 @@ const CloseBtn = ({ onClick }) => (
     }}
   >
     x
+  </button>
+);
+
+const BonkButton = ({ visible, onClick }) => (
+  <button
+    onClick={onClick}
+    style={{
+      position: "absolute",
+      right: 8,
+      bottom: 8,
+      zIndex: 12,
+      border: "1px solid #ff2e97",
+      background: "rgba(0,0,0,0.85)",
+      color: "#ff2e97",
+      padding: "3px 8px",
+      fontSize: 11,
+      cursor: "pointer",
+      opacity: visible ? 1 : 0,
+      pointerEvents: visible ? "auto" : "none",
+      transition: "opacity 0.12s ease",
+      ...mono,
+    }}
+  >
+    bonk
   </button>
 );
 
@@ -440,6 +466,7 @@ export default function Grid() {
   const [yourStatus, setYourStatus] = useState("");
   const [loadingFriends, setLoadingFriends] = useState(true);
   const [toast, setToast] = useState(null);
+  const [hoveredVideoId, setHoveredVideoId] = useState(null);
 
   // Track if this tab is active
   const [viewingBonk, setViewingBonk] = useState(
@@ -476,11 +503,29 @@ export default function Grid() {
 
   /** Hold the real video track so we can stop it later */
   const realTrackRef = useRef(null);
+  const bonkAudioRef = useRef(null);
 
   /** Remote MediaStreams keyed by sharer userId */
   const [remoteStreams, setRemoteStreams] = useState({});
   /** Inbound peers that exhausted reconnect attempts and should render as offline. */
   const [peerUnavailable, setPeerUnavailable] = useState({});
+
+  useEffect(() => {
+    const audio = new Audio(BONK_SOUND_URL);
+    audio.preload = "auto";
+    bonkAudioRef.current = audio;
+    return () => {
+      audio.pause();
+      bonkAudioRef.current = null;
+    };
+  }, []);
+
+  const playBonkSound = useCallback(() => {
+    const audio = bonkAudioRef.current;
+    if (!audio) return;
+    audio.currentTime = 0;
+    void audio.play().catch(() => {});
+  }, []);
 
   /** Load friend graph and pending requests from backend. */
   useEffect(() => {
@@ -661,6 +706,10 @@ export default function Grid() {
       });
     });
 
+    socket.on("peer:bonk", () => {
+      playBonkSound();
+    });
+
     return () => {
       socket.off("snapshot:update");
       socket.off("presence:init");
@@ -672,6 +721,7 @@ export default function Grid() {
       socket.off("peer:answer");
       socket.off("peer:ice");
       socket.off("peer:sharer-stopped");
+      socket.off("peer:bonk");
       setOnRemoteStream(null);
       setOnRemoteStreamRemoved(null);
       setOnPeerConnectionFailed(null);
@@ -679,7 +729,7 @@ export default function Grid() {
       setRemoteStreams({});
       socket.disconnect();
     };
-  }, [currentUser?.id]);
+  }, [currentUser?.id, playBonkSound]);
 
   const handleAccept = async (id) => {
     try {
@@ -744,6 +794,14 @@ export default function Grid() {
     const f = friends.find((x) => x.id === id);
     if (!f || !isViewable(f)) return;
     setExpandedId((prev) => (prev === id ? null : id));
+  };
+
+  const handleBonk = (event, friendId) => {
+    event.stopPropagation();
+    const friend = friends.find((item) => item.id === friendId);
+    if (!friend || friend.isYou || !isViewable(friend)) return;
+    socket.emit("peer:bonk", { toId: friendId });
+    playBonkSound();
   };
 
   const stopLiveSession = () => {
@@ -828,6 +886,7 @@ export default function Grid() {
   const expanded = expandedId
     ? friends.find((f) => f.id === expandedId)
     : null;
+  const expandedCanBonk = Boolean(expanded && !expanded.isYou && isViewable(expanded));
 
   const youData = friends.find((f) => f.isYou) ?? {
     id: currentUser?.id || "you",
@@ -1024,7 +1083,15 @@ export default function Grid() {
               }}
             >
               <CloseBtn onClick={() => setExpandedId(null)} />
-              <div style={{ aspectRatio: "16/9", width: "100%" }}>
+              <div
+                style={{ aspectRatio: "16/9", width: "100%", position: "relative" }}
+                onMouseEnter={() => {
+                  if (expandedCanBonk) setHoveredVideoId(expanded.id);
+                }}
+                onMouseLeave={() => {
+                  if (expandedCanBonk) setHoveredVideoId((prev) => (prev === expanded.id ? null : prev));
+                }}
+              >
                 {/* Use live <video> for friends with an active remote stream */}
                 {!expanded.isYou && remoteStreams[expanded.id] ? (
                   <ExpandedVideo stream={remoteStreams[expanded.id]} />
@@ -1035,6 +1102,12 @@ export default function Grid() {
                     isOff={expanded.isYou ? !screenOn : false}
                     isViewingBonk={expanded.isYou ? viewingBonk : false}
                     snapshotUrl={snapshotUrls[expanded.id]}
+                  />
+                )}
+                {expandedCanBonk && (
+                  <BonkButton
+                    visible={hoveredVideoId === expanded.id}
+                    onClick={(event) => handleBonk(event, expanded.id)}
                   />
                 )}
               </div>
@@ -1123,7 +1196,15 @@ export default function Grid() {
                   transition: "opacity 0.15s",
                 }}
               >
-                <div style={{ aspectRatio: "16/10" }}>
+                <div
+                  style={{ aspectRatio: "16/10", position: "relative" }}
+                  onMouseEnter={() => {
+                    if (!f.isYou && viewable) setHoveredVideoId(f.id);
+                  }}
+                  onMouseLeave={() => {
+                    if (!f.isYou) setHoveredVideoId((prev) => (prev === f.id ? null : prev));
+                  }}
+                >
                   <Screen
                     name={f.name}
                     isBlurred={f.isYou ? blurred : false}
@@ -1131,6 +1212,12 @@ export default function Grid() {
                     isViewingBonk={f.isYou ? viewingBonk : false}
                     snapshotUrl={snapshotUrls[f.id]}
                   />
+                  {!f.isYou && viewable && (
+                    <BonkButton
+                      visible={hoveredVideoId === f.id}
+                      onClick={(event) => handleBonk(event, f.id)}
+                    />
+                  )}
                 </div>
                 <div
                   style={{

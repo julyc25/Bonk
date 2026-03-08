@@ -71,6 +71,15 @@ export function registerSignaling(io) {
       io.to(targetId).emit('peer:ice', { fromId: userId, candidate });
     });
 
+    /** Relay a bonk event to a live friend's tab. */
+    socket.on('peer:bonk', ({ toId }) => {
+      if (!isOnline || !hasUser(userId)) return;
+      const targetId = normalizeUserId(toId);
+      if (!targetId || !areFriends(userId, targetId)) return;
+      if (!getOnlineUsers().has(targetId)) return;
+      io.to(targetId).emit('peer:bonk', { fromId: userId });
+    });
+
     /**
      * Notify all friends when a user stops sharing, to tear down their inbound peer connections.
      */
