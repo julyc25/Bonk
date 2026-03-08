@@ -75,7 +75,7 @@ export default function Landing() {
           client_id: config.googleClientId,
           callback: async ({ credential }) => {
             try {
-              await apiJson('/api/auth/google', {
+            await apiJson('/api/auth/google', {
                 method: 'POST',
                 body: JSON.stringify({ credential }),
               });
@@ -130,8 +130,8 @@ export default function Landing() {
             <div ref={googleBtnRef} style={{ width: '100%', display: 'flex', justifyContent: 'center' }} />
             {loadingAuth && <p style={{ color: '#999', fontSize: 11, lineHeight: 1.6, margin: '12px 0 0' }}>Initializing Google sign-in...</p>}
             {authError && <p style={{ color: SECONDARY_ACCENT, fontSize: 11, lineHeight: 1.6, margin: '12px 0 0' }}>{authError}</p>}
-            <p style={{ color: '#999', fontSize: 11, lineHeight: 1.6, margin: '12px 0 0' }}>
-              by continuing you agree to the{' '}
+            <p style={{ color: '#999', fontSize: 11, lineHeight: 1.6, margin: '12px 14px 0' }}>
+              By continuing you agree to the{' '}
               <a href="#" style={{ color: SECONDARY_ACCENT, textDecoration: 'none' }}>privacy policy</a>.
             </p>
           </div>

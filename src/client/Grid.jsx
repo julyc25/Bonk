@@ -21,7 +21,7 @@ import {
 const mono = { fontFamily: "monospace" };
 
 const PRIMARY = '#000';
-const PRIMARY_ACCENT = '#555';
+const PRIMARY_ACCENT = '#666';
 const SECONDARY_ACCENT = '#ff2e97';
 const SECONDARY = '#FFF';
 const BONK_SOUND_URL = bonkSoundUrl;
@@ -69,7 +69,7 @@ function normalizeFriendModel(self, friends) {
 const btn = {
   background: "#000",
   border: "1px solid #333",
-  color: "#888",
+  color: "#BBB",
   padding: "4px 8px",
   cursor: "pointer",
   fontSize: 12,
