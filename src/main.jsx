@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import './client/index.css'
 import Landing from './client/Landing.jsx'
 import Grid from './client/Grid.jsx'
 
