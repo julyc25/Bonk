@@ -32,6 +32,15 @@ export function registerSignaling(io) {
       }
     });
 
+    /** Relay reconnect-triggered offer requests to a target peer. */
+    socket.on('peer:request-offer', ({ toId }) => {
+      if (!isOnline || !hasUser(userId)) return;
+      const targetId = normalizeUserId(toId);
+      if (!targetId || !areFriends(userId, targetId)) return;
+      if (!getOnlineUsers().has(targetId)) return;
+      io.to(targetId).emit('peer:request-offer', { fromId: userId });
+    });
+
     /** Relay SDP offer to the target peer. */
     socket.on('peer:offer', ({ toId, sdp }) => {
       if (!isOnline || !hasUser(userId)) return;

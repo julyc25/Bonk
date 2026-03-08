@@ -1,8 +1,33 @@
 import socket from '../socket.js';
 
-const ICE_CONFIG = {
-  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-};
+const DEFAULT_STUN_SERVER = 'stun:stun.l.google.com:19302';
+const MAX_FAILED_RECONNECT_ATTEMPTS = 1;
+
+function parseCsv(value) {
+  return String(value ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function buildIceConfig() {
+  const iceServers = [{ urls: DEFAULT_STUN_SERVER }];
+  const turnUrls = parseCsv(import.meta.env.VITE_TURN_URLS);
+  const username = String(import.meta.env.VITE_TURN_USERNAME ?? '').trim();
+  const credential = String(import.meta.env.VITE_TURN_CREDENTIAL ?? '').trim();
+
+  if (turnUrls.length > 0 && username && credential) {
+    iceServers.push({
+      urls: turnUrls.length === 1 ? turnUrls[0] : turnUrls,
+      username,
+      credential,
+    });
+  }
+
+  return { iceServers };
+}
+
+const ICE_CONFIG = buildIceConfig();
 
 /**
  * Map from peer id to RTCPeerConnection for all active connections.
@@ -11,30 +36,68 @@ const ICE_CONFIG = {
  */
 const outboundPeers = new Map();
 const inboundPeers = new Map();
+const outboundTracks = new Map();
+const outboundReconnectAttempts = new Map();
+const inboundReconnectAttempts = new Map();
 
 /** Callbacks set by the UI to receive remote streams and cleanup events. */
 let onRemoteStream = null;
 let onRemoteStreamRemoved = null;
+let onPeerConnectionFailed = null;
 
 export function setOnRemoteStream(cb) { onRemoteStream = cb; }
 export function setOnRemoteStreamRemoved(cb) { onRemoteStreamRemoved = cb; }
+export function setOnPeerConnectionFailed(cb) { onPeerConnectionFailed = cb; }
+
+function setupConnectionStateHandler(pc, peerId, direction) {
+  const attemptsMap = direction === 'outbound' ? outboundReconnectAttempts : inboundReconnectAttempts;
+
+  pc.onconnectionstatechange = () => {
+    const state = pc.connectionState;
+    if (state === 'connected') {
+      attemptsMap.set(peerId, 0);
+      return;
+    }
+    if (state !== 'failed') return;
+
+    const attempts = attemptsMap.get(peerId) ?? 0;
+    if (attempts < MAX_FAILED_RECONNECT_ATTEMPTS) {
+      attemptsMap.set(peerId, attempts + 1);
+      if (direction === 'outbound') {
+        const track = outboundTracks.get(peerId);
+        if (track && track.readyState === 'live') {
+          createOutboundPeer(peerId, track);
+          return;
+        }
+      } else {
+        createInboundPeer(peerId);
+        socket.emit('peer:request-offer', { toId: peerId });
+        return;
+      }
+    }
+
+    if (onPeerConnectionFailed) {
+      onPeerConnectionFailed(peerId, direction);
+    }
+  };
+}
 
 /**
  * Create an outbound peer connection to a viewer.
  * Called once per online friend when we go live.
  */
 export function createOutboundPeer(friendId, localTrack) {
-  // Close exsiting connection to friend if it exists
   closeOutboundPeer(friendId);
 
   const pc = new RTCPeerConnection(ICE_CONFIG);
   outboundPeers.set(friendId, pc);
-
+  outboundTracks.set(friendId, localTrack);
   pc.addTrack(localTrack);
+  setupConnectionStateHandler(pc, friendId, 'outbound');
 
-  pc.onicecandidate = (e) => {
-    if (e.candidate) {
-      socket.emit('peer:ice', { toId: friendId, candidate: e.candidate });
+  pc.onicecandidate = (event) => {
+    if (event.candidate) {
+      socket.emit('peer:ice', { toId: friendId, candidate: event.candidate });
     }
   };
 
@@ -52,15 +115,16 @@ export function createOutboundPeer(friendId, localTrack) {
 }
 
 /**
- * Replace the video track sent to all outbound peers without needint to renegotiate the connection.
+ * Replace the video track sent to all outbound peers without renegotiating.
  */
 export function replaceOutboundTrack(newTrack) {
-  for (const [, pc] of outboundPeers) {
-    const sender = pc.getSenders().find((s) => s.track?.kind === 'video' || s.track === null);
+  for (const [peerId, pc] of outboundPeers) {
+    outboundTracks.set(peerId, newTrack);
+    const sender = pc.getSenders().find((item) => item.track?.kind === 'video' || item.track === null);
     if (sender) {
-      sender.replaceTrack(newTrack).catch((err) =>
-        console.warn('[bonk] replaceTrack failed:', err)
-      );
+      sender.replaceTrack(newTrack).catch((err) => {
+        console.warn('[bonk] replaceTrack failed:', err);
+      });
     }
   }
 }
@@ -69,24 +133,22 @@ export function replaceOutboundTrack(newTrack) {
  * Create an inbound peer connection to receive a sharer's stream.
  */
 export function createInboundPeer(sharerId) {
-  // Close if I already have an inbound connection from this sharer
   closeInboundPeer(sharerId);
 
   const pc = new RTCPeerConnection(ICE_CONFIG);
   inboundPeers.set(sharerId, pc);
+  setupConnectionStateHandler(pc, sharerId, 'inbound');
 
   pc.ontrack = (event) => {
-    if (onRemoteStream && event.streams[0]) {
-      const stream = event.streams[0] || new MediaStream([event.track]);
-      if (onRemoteStream && stream) {
-        onRemoteStream(sharerId, stream);
-      }
+    const stream = event.streams[0] || new MediaStream([event.track]);
+    if (onRemoteStream && stream) {
+      onRemoteStream(sharerId, stream);
     }
   };
 
-  pc.onicecandidate = (e) => {
-    if (e.candidate) {
-      socket.emit('peer:ice', { toId: sharerId, candidate: e.candidate });
+  pc.onicecandidate = (event) => {
+    if (event.candidate) {
+      socket.emit('peer:ice', { toId: sharerId, candidate: event.candidate });
     }
   };
 
@@ -143,6 +205,7 @@ export async function handleIce(fromId, candidate) {
 function closeOutboundPeer(friendId) {
   const pc = outboundPeers.get(friendId);
   if (pc) {
+    pc.onconnectionstatechange = null;
     pc.close();
     outboundPeers.delete(friendId);
   }
@@ -151,6 +214,7 @@ function closeOutboundPeer(friendId) {
 function closeInboundPeer(sharerId) {
   const pc = inboundPeers.get(sharerId);
   if (pc) {
+    pc.onconnectionstatechange = null;
     pc.close();
     inboundPeers.delete(sharerId);
   }
@@ -161,11 +225,14 @@ export function closeAllOutbound() {
   for (const [id] of outboundPeers) {
     closeOutboundPeer(id);
   }
+  outboundReconnectAttempts.clear();
+  outboundTracks.clear();
 }
 
 /** Close a specific inbound peer when a sharer stops. */
 export function closeInbound(sharerId) {
   closeInboundPeer(sharerId);
+  inboundReconnectAttempts.delete(sharerId);
   if (onRemoteStreamRemoved) {
     onRemoteStreamRemoved(sharerId);
   }
@@ -175,6 +242,9 @@ export function closeInbound(sharerId) {
 export function closeAllPeers() {
   for (const [id] of outboundPeers) closeOutboundPeer(id);
   for (const [id] of inboundPeers) closeInboundPeer(id);
+  outboundReconnectAttempts.clear();
+  inboundReconnectAttempts.clear();
+  outboundTracks.clear();
 }
 
 /** Get the outbound peers map (for bonk-tab track swapping). */

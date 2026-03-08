@@ -12,8 +12,8 @@ import {
   handleIce,
   setOnRemoteStream,
   setOnRemoteStreamRemoved,
-  createInboundPeer,
   getOutboundPeers,
+  setOnPeerConnectionFailed,
 } from "./screenshare/peer.js";
 
 const mono = { fontFamily: "monospace" };
@@ -479,6 +479,8 @@ export default function Grid() {
 
   /** Remote MediaStreams keyed by sharer userId */
   const [remoteStreams, setRemoteStreams] = useState({});
+  /** Inbound peers that exhausted reconnect attempts and should render as offline. */
+  const [peerUnavailable, setPeerUnavailable] = useState({});
 
   /** Load friend graph and pending requests from backend. */
   useEffect(() => {
@@ -553,6 +555,15 @@ export default function Grid() {
           [fid]: `/api/snapshot/${encodeURIComponent(fid)}?t=${Date.now()}`,
         }));
       }
+      setPeerUnavailable((prev) => {
+        const next = {};
+        for (const [id, failed] of Object.entries(prev)) {
+          if (failed && liveFriends.includes(id)) {
+            next[id] = true;
+          }
+        }
+        return next;
+      });
     });
 
     /** Change in a friend's presence */
@@ -579,8 +590,18 @@ export default function Grid() {
       if (online && realTrackRef.current && !getOutboundPeers().has(userId)) {
         createOutboundPeer(userId, realTrackRef.current);
       }
+      if (online === false) {
+        closeInbound(userId);
+      }
       if (!live) {
         setSnapshotUrls((prev) => {
+          const next = { ...prev };
+          delete next[userId];
+          return next;
+        });
+        closeInbound(userId);
+        setPeerUnavailable((prev) => {
+          if (!prev[userId]) return prev;
           const next = { ...prev };
           delete next[userId];
           return next;
@@ -591,6 +612,12 @@ export default function Grid() {
     // ── WebRTC signaling events ──
 
     setOnRemoteStream((sharerId, stream) => {
+      setPeerUnavailable((prev) => {
+        if (!prev[sharerId]) return prev;
+        const next = { ...prev };
+        delete next[sharerId];
+        return next;
+      });
       setRemoteStreams((prev) => ({ ...prev, [sharerId]: stream }));
     });
     setOnRemoteStreamRemoved((sharerId) => {
@@ -599,6 +626,17 @@ export default function Grid() {
         delete next[sharerId];
         return next;
       });
+    });
+    setOnPeerConnectionFailed((peerId, direction) => {
+      if (direction === "inbound") {
+        closeInbound(peerId);
+        setPeerUnavailable((prev) => ({ ...prev, [peerId]: true }));
+      }
+    });
+
+    socket.on("peer:request-offer", ({ fromId }) => {
+      if (!realTrackRef.current) return;
+      createOutboundPeer(fromId, realTrackRef.current);
     });
 
     socket.on("peer:offer", ({ fromId, sdp }) => {
@@ -615,6 +653,12 @@ export default function Grid() {
 
     socket.on("peer:sharer-stopped", ({ sharerId }) => {
       closeInbound(sharerId);
+      setPeerUnavailable((prev) => {
+        if (!prev[sharerId]) return prev;
+        const next = { ...prev };
+        delete next[sharerId];
+        return next;
+      });
     });
 
     return () => {
@@ -628,6 +672,9 @@ export default function Grid() {
       socket.off("peer:answer");
       socket.off("peer:ice");
       socket.off("peer:sharer-stopped");
+      setOnRemoteStream(null);
+      setOnRemoteStreamRemoved(null);
+      setOnPeerConnectionFailed(null);
       closeAllPeers();
       setRemoteStreams({});
       socket.disconnect();
@@ -691,7 +738,7 @@ export default function Grid() {
     }
   };
 
-  const isViewable = (f) => (f.isYou ? screenOn : f.live);
+  const isViewable = (f) => (f.isYou ? screenOn : f.live && !peerUnavailable[f.id]);
 
   const handleCardClick = (id) => {
     const f = friends.find((x) => x.id === id);
@@ -699,19 +746,25 @@ export default function Grid() {
     setExpandedId((prev) => (prev === id ? null : id));
   };
 
+  const stopLiveSession = () => {
+    stopSnapshotWorker();
+    closeAllOutbound();
+    if (realTrackRef.current) {
+      const track = realTrackRef.current;
+      realTrackRef.current = null;
+      track.onended = null;
+      track.stop();
+    }
+    socket.emit("user:stoplive");
+    setScreenOn(false);
+    setShowPreview(false);
+    setExpandedId(null);
+  };
+
   const handleGoLiveToggle = (e) => {
     e.stopPropagation();
     if (screenOn) {
-      stopSnapshotWorker();
-      closeAllOutbound();
-      if (realTrackRef.current) {
-        realTrackRef.current.stop();
-        realTrackRef.current = null;
-      }
-      socket.emit("user:stoplive");
-      setScreenOn(false);
-      setShowPreview(false);
-      setExpandedId(null);
+      stopLiveSession();
     } else {
       setShowPreview(true);
       setExpandedId(null);
@@ -743,13 +796,7 @@ export default function Grid() {
       realTrackRef.current = track;
 
       track.onended = () => {
-        stopSnapshotWorker();
-        closeAllOutbound();
-        socket.emit("user:stoplive");
-        realTrackRef.current = null;
-        setScreenOn(false);
-        setShowPreview(false);
-        setExpandedId(null);
+        stopLiveSession();
       };
 
       setScreenOn(true);
