@@ -49,7 +49,7 @@ const btn = {
   color: "#888",
   padding: "4px 8px",
   cursor: "pointer",
-  fontSize: 10,
+  fontSize: 12,
   ...mono,
 };
 const btnPink = { ...btn, border: "1px solid #ff2e97", color: "#ff2e97" };
@@ -66,7 +66,7 @@ const Screen = ({ name, isBlurred, isOff, isViewingBonk }) => {
   if (isOff) {
     return <div style={{ width: "100%", height: "100%", background: "#000" }} />;
   }
-
+  
   // Pauses screen sharing when on this tab
   if (isViewingBonk) {
     return (
@@ -82,10 +82,10 @@ const Screen = ({ name, isBlurred, isOff, isViewingBonk }) => {
         }}
       >
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 9, color: "#ff2e97", ...mono, marginBottom: 3 }}>
+          <div style={{ fontSize: 11, color: "#ff2e97", ...mono, marginBottom: 3 }}>
             ⚠ viewing bonk
           </div>
-          <div style={{ fontSize: 8, color: "#333", ...mono }}>
+          <div style={{ fontSize: 10, color: "#333", ...mono }}>
             screen paused
           </div>
         </div>
@@ -111,7 +111,7 @@ const Screen = ({ name, isBlurred, isOff, isViewingBonk }) => {
       <div
         style={{
           opacity: 0.15,
-          fontSize: 9,
+          fontSize: 11,
           color: "#fff",
           ...mono,
           lineHeight: 1.5,
@@ -135,10 +135,10 @@ const CloseBtn = ({ onClick }) => (
       background: "#000",
       border: "1px solid #333",
       color: "#fff",
-      width: 24,
-      height: 24,
+      width: 28,
+      height: 28,
       cursor: "pointer",
-      fontSize: 12,
+      fontSize: 14,
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
@@ -174,9 +174,11 @@ const StatusEditor = ({ value, onChange }) => {
           border: "none",
           borderBottom: "1px solid #ff2e97",
           color: "#ff2e97",
-          fontSize: 8,
+          fontSize: 10,
           outline: "none",
           width: "100%",
+          minWidth: 0,
+          boxSizing: "border-box",
           ...mono,
         }}
       />
@@ -193,11 +195,15 @@ const StatusEditor = ({ value, onChange }) => {
       }}
       style={{
         color: "#ff2e97",
-        fontSize: 8,
+        fontSize: 10,
         cursor: "text",
         borderBottom: "1px dashed #ff2e97",
         marginTop: 1,
         display: "inline-block",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+        maxWidth: "100%",
       }}
     >
       {value}
@@ -216,14 +222,14 @@ const FriendsPanel = ({
   onAdd,
 }) => {
   if (!show) return null;
-
+  
   return (
     <div
       style={{
         position: "absolute",
         top: "calc(100% + 4px)",
         right: 0,
-        width: 300,
+        width: 320,
         maxHeight: "calc(100vh - 70px)",
         background: "#000",
         border: "1px solid #333",
@@ -242,7 +248,7 @@ const FriendsPanel = ({
           borderBottom: "1px solid #222",
         }}
       >
-        <span style={{ color: "#fff", fontWeight: 700, fontSize: 12 }}>
+        <span style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>
           friends
         </span>
         <button
@@ -252,7 +258,7 @@ const FriendsPanel = ({
             border: "none",
             color: "#555",
             cursor: "pointer",
-            fontSize: 14,
+            fontSize: 16,
             ...mono,
           }}
         >
@@ -264,7 +270,7 @@ const FriendsPanel = ({
         <div
           style={{
             color: "#555",
-            fontSize: 9,
+            fontSize: 11,
             textTransform: "uppercase",
             marginBottom: 6,
           }}
@@ -282,7 +288,7 @@ const FriendsPanel = ({
               border: "1px solid #333",
               padding: "5px 8px",
               color: "#fff",
-              fontSize: 11,
+              fontSize: 13,
               outline: "none",
               ...mono,
             }}
@@ -300,7 +306,7 @@ const FriendsPanel = ({
         <div
           style={{
             color: "#555",
-            fontSize: 9,
+            fontSize: 11,
             textTransform: "uppercase",
             marginBottom: 8,
           }}
@@ -308,7 +314,7 @@ const FriendsPanel = ({
           requests ({requests.length})
         </div>
         {requests.length === 0 && (
-          <div style={{ color: "#333", fontSize: 11 }}>none</div>
+          <div style={{ color: "#333", fontSize: 13 }}>none</div>
         )}
         {requests.map((r) => (
           <div
@@ -322,19 +328,19 @@ const FriendsPanel = ({
             }}
           >
             <div>
-              <div style={{ color: "#fff", fontSize: 11 }}>{r.name}</div>
-              <div style={{ color: "#444", fontSize: 9 }}>{r.id}</div>
+              <div style={{ color: "#fff", fontSize: 13 }}>{r.name}</div>
+              <div style={{ color: "#444", fontSize: 11 }}>{r.id}</div>
             </div>
             <div style={{ display: "flex", gap: 4 }}>
               <button
                 onClick={() => onAccept(r.id)}
-                style={{ ...btnGreen, fontSize: 9 }}
+                style={{ ...btnGreen, fontSize: 11 }}
               >
                 ok
               </button>
               <button
                 onClick={() => onDecline(r.id)}
-                style={{ ...btn, fontSize: 9 }}
+                style={{ ...btn, fontSize: 11 }}
               >
                 no
               </button>
@@ -361,7 +367,7 @@ export default function Grid() {
   const [viewingBonk, setViewingBonk] = useState(
     () => document.visibilityState === "visible"
   );
-
+  
   useEffect(() => {
     const onVisibility = () =>
       setViewingBonk(document.visibilityState === "visible");
@@ -459,10 +465,9 @@ export default function Grid() {
           top: 0,
           zIndex: 50,
           background: "#000",
-          fontSize: 24
         }}
       >
-        <span style={{ fontSize: 18, fontWeight: 700, color: "#fff", letterSpacing: -0.5 }}>
+        <span style={{ fontSize: 24, fontWeight: 700, color: "#fff", letterSpacing: -0.5 }}>
           bonk
         </span>
         <div style={{ position: "relative" }}>
@@ -486,11 +491,11 @@ export default function Grid() {
                   right: -5,
                   background: "#ff2e97",
                   color: "#000",
-                  fontSize: 8,
+                  fontSize: 10,
                   fontWeight: 700,
-                  width: 14,
-                  height: 14,
-                  borderRadius: 7,
+                  width: 16,
+                  height: 16,
+                  borderRadius: 8,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -521,7 +526,7 @@ export default function Grid() {
       )}
 
       <div style={{ padding: "12px 24px 40px" }}>
-
+        
         {/* PREVIEW SCREEN */}
         {showPreview && (
           <div style={{ marginBottom: 12 }}>
@@ -540,7 +545,7 @@ export default function Grid() {
                   zIndex: 10,
                   border: "1px solid #ff2e97",
                   color: "#ff2e97",
-                  fontSize: 9,
+                  fontSize: 11,
                   fontWeight: 700,
                   padding: "2px 8px",
                   background: "#000",
@@ -567,9 +572,9 @@ export default function Grid() {
                   justifyContent: "space-between",
                 }}
               >
-                <div style={{ fontSize: 12, color: "#fff" }}>
+                <div style={{ fontSize: 14, color: "#fff" }}>
                   {youData.name}*{" "}
-                  <span style={{ color: "#ff2e97", fontSize: 10 }}>
+                  <span style={{ color: "#ff2e97", fontSize: 12 }}>
                     preview
                   </span>
                 </div>
@@ -629,17 +634,19 @@ export default function Grid() {
                 }}
               >
                 <div style={{ minWidth: 0, flex: 1 }}>
-
-                  {/* Name and live status*/}
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div style={{ fontSize: 12, color: "#fff" }}>
+                  
+                  {/* Name and live status */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                    <div style={{ fontSize: 14, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {expanded.name}
+                      {expanded.isYou ? "*" : ""}
                     </div>
                     {!expanded.isYou && (
                       <span
                         style={{
-                          fontSize: 10,
+                          fontSize: 12,
                           color: isViewable(expanded) ? "#39ff14" : "#444",
+                          flexShrink: 0,
                           ...mono,
                         }}
                       >
@@ -647,9 +654,10 @@ export default function Grid() {
                       </span>
                     )}
                   </div>
+
                   {isViewable(expanded) && (
-                    <div style={{ marginTop: 2 }}>
-                      <span style={{ color: "#555", fontSize: 10 }}>
+                    <div style={{ marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <span style={{ color: "#555", fontSize: 12 }}>
                         {expanded.isYou ? yourStatus : expanded.status}
                       </span>
                     </div>
@@ -658,7 +666,7 @@ export default function Grid() {
 
                 {/* User buttons */}
                 {expanded.isYou && (
-                  <div style={{ display: "flex", gap: 4, marginLeft: 12 }}>
+                  <div style={{ display: "flex", gap: 4, marginLeft: 12, flexShrink: 0 }}>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -685,8 +693,8 @@ export default function Grid() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            gap: 6,
+            gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+            gap: 12,
           }}
         >
           {sortedFriends.map((f) => {
@@ -725,16 +733,17 @@ export default function Grid() {
                   }}
                 >
                   <div style={{ minWidth: 0, flex: 1 }}>
-
+                    
                     {/* Name and status */}
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <div style={{ fontSize: 10, color: "#fff" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                      <div style={{ fontSize: 12, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                         {f.name}
+                        {f.isYou ? "*" : ""}
                       </div>
                       {!f.isYou && (
                         <span
                           style={{
-                            fontSize: 8,
+                            fontSize: 10,
                             color: viewable ? "#39ff14" : "#444",
                             flexShrink: 0,
                             ...mono,
@@ -746,7 +755,7 @@ export default function Grid() {
                     </div>
 
                     {/* Edit status */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 1, minHeight: 12 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 2, minHeight: 14, overflow: "hidden" }}>
                       {viewable && (
                         f.isYou ? (
                           <StatusEditor value={yourStatus} onChange={setYourStatus} />
@@ -754,7 +763,7 @@ export default function Grid() {
                           <span
                             style={{
                               color: "#555",
-                              fontSize: 8,
+                              fontSize: 10,
                               overflow: "hidden",
                               textOverflow: "ellipsis",
                               whiteSpace: "nowrap",
@@ -766,10 +775,10 @@ export default function Grid() {
                       )}
                     </div>
                   </div>
-
+                  
                   {/* User buttons */}
                   {f.isYou && (
-                    <div style={{ display: "flex", gap: 3, marginLeft: 4 }}>
+                    <div style={{ display: "flex", gap: 3, marginLeft: 6, flexShrink: 0 }}>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -777,7 +786,6 @@ export default function Grid() {
                         }}
                         style={{
                           ...(blurred ? btnPink : btn),
-                          fontSize: 8,
                           padding: "2px 5px",
                         }}
                       >
@@ -787,7 +795,6 @@ export default function Grid() {
                         onClick={handleGoLiveToggle}
                         style={{
                           ...(screenOn ? btnDanger : btn),
-                          fontSize: 8,
                           padding: "2px 5px",
                         }}
                       >
