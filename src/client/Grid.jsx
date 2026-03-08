@@ -981,7 +981,7 @@ export default function Grid() {
                 }}
               >
                 <div style={{ fontSize: 14, color: "#fff" }}>
-                  {youData.name}*{" "}
+                  {youData.name}{" "}
                   <span style={{ color: "#ff2e97", fontSize: 12 }}>
                     preview
                   </span>
