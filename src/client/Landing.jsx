@@ -53,6 +53,9 @@ export default function Landing() {
 
   useEffect(() => {
     let cancelled = false;
+    let resizeObserver = null;
+    let onWindowResize = null;
+    let lastRenderedWidth = 0;
 
     const initAuth = async () => {
       try {
@@ -75,7 +78,7 @@ export default function Landing() {
           client_id: config.googleClientId,
           callback: async ({ credential }) => {
             try {
-            await apiJson('/api/auth/google', {
+              await apiJson('/api/auth/google', {
                 method: 'POST',
                 body: JSON.stringify({ credential }),
               });
@@ -86,14 +89,30 @@ export default function Landing() {
           },
         });
 
-        googleBtnRef.current.innerHTML = '';
-        window.google.accounts.id.renderButton(googleBtnRef.current, {
-          theme: 'outline',
-          size: 'large',
-          text: 'signin_with',
-          shape: 'rectangular',
-          width: 320,
-        });
+        const renderGoogleButton = () => {
+          if (cancelled || !googleBtnRef.current) return;
+          const host = googleBtnRef.current;
+          const width = Math.max(180, Math.min(320, Math.floor(host.clientWidth - 20)));
+          if (Math.abs(width - lastRenderedWidth) < 2) return;
+          lastRenderedWidth = width;
+          host.innerHTML = '';
+          window.google.accounts.id.renderButton(host, {
+            theme: 'outline',
+            size: 'large',
+            text: 'signin_with',
+            shape: 'rectangular',
+            width,
+          });
+        };
+
+        renderGoogleButton();
+        if (typeof ResizeObserver !== 'undefined') {
+          resizeObserver = new ResizeObserver(() => renderGoogleButton());
+          resizeObserver.observe(googleBtnRef.current);
+        } else {
+          onWindowResize = () => renderGoogleButton();
+          window.addEventListener('resize', onWindowResize);
+        }
       } catch (err) {
         if (!cancelled) {
           setAuthError(err instanceof Error ? err.message : 'Unable to initialize sign-in.');
@@ -106,6 +125,8 @@ export default function Landing() {
     initAuth();
     return () => {
       cancelled = true;
+      resizeObserver?.disconnect();
+      if (onWindowResize) window.removeEventListener('resize', onWindowResize);
     };
   }, [navigate]);
 
@@ -127,7 +148,16 @@ export default function Landing() {
           </p>
 
           <div style={{ border: '1px solid #6a6a6a', padding: '16px', background: PRIMARY }}>
-            <div ref={googleBtnRef} style={{ width: '100%', display: 'flex', justifyContent: 'center' }} />
+            <div
+              ref={googleBtnRef}
+              style={{
+                width: '100%',
+                display: 'flex',
+                justifyContent: 'center',
+                padding: '6px 10px',
+                boxSizing: 'border-box',
+              }}
+            />
             {loadingAuth && <p style={{ color: '#999', fontSize: 11, lineHeight: 1.6, margin: '12px 0 0' }}>Initializing Google sign-in...</p>}
             {authError && <p style={{ color: SECONDARY_ACCENT, fontSize: 11, lineHeight: 1.6, margin: '12px 0 0' }}>{authError}</p>}
             <p style={{ color: '#999', fontSize: 11, lineHeight: 1.6, margin: '12px 14px 0' }}>
