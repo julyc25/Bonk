@@ -1,4 +1,19 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import socket from "./socket.js";
+import { startSnapshotWorker, stopSnapshotWorker } from "./screenshare/snapshots.js";
+import {
+  createOutboundPeer,
+  replaceOutboundTrack,
+  closeAllOutbound,
+  closeInbound,
+  closeAllPeers,
+  handleOffer,
+  handleAnswer,
+  handleIce,
+  setOnRemoteStream,
+  setOnRemoteStreamRemoved,
+  createInboundPeer,
+} from "./screenshare/peer.js";
 
 export const mono = { fontFamily: "monospace" };
 
@@ -7,37 +22,38 @@ const PRIMARY_ACCENT = '#555';
 const SECONDARY_ACCENT = '#ff2e97';
 const SECONDARY = '#FFF';
 
+// TODO: Hardcoded for now, will do auth later.
+// Use ?user=emily@gmail.com (or any friend ID) to test as a different user.
+const USER_ID = new URLSearchParams(window.location.search).get("user") || "you@gmail.com";
+
+// All known users — shared directory until auth/DB is wired up.
+const ALL_USERS = {
+  "you@gmail.com":     { name: "You",     status: "edit status here" },
+  "emily@gmail.com":   { name: "Emily",   status: "doing 100 CS 2800 proofs" },
+  "clarice@gmail.com": { name: "Clarice", status: "slacking off" },
+  "julie@gmail.com":   { name: "Julie",   status: "making a cpu simulator for CS 3410" },
+};
+
+// Friend graph (mirrors src/server/friends.js)
+const FRIEND_GRAPH = {
+  "you@gmail.com":     ["emily@gmail.com", "clarice@gmail.com", "julie@gmail.com"],
+  "emily@gmail.com":   ["you@gmail.com", "clarice@gmail.com", "julie@gmail.com"],
+  "clarice@gmail.com": ["you@gmail.com", "emily@gmail.com"],
+  "julie@gmail.com":   ["you@gmail.com", "emily@gmail.com"],
+};
+
+// Build FRIENDS dynamically: current user first (isYou), then their friends.
+const myFriendIds = FRIEND_GRAPH[USER_ID] ?? [];
+const me = ALL_USERS[USER_ID] ?? { name: USER_ID, status: "" };
 const FRIENDS = [
-  {
-    id: "you@gmail.com",
-    name: "You",
-    status: "Edit status here...",
-    isYou: true,
-    live: false,
-  },
-  // placeholders
-  {
-    id: "emily@gmail.com",
-    name: "Emily",
-    status: "doing 100 CS 2800 proofs",
-    live: true,
-  },
-  {
-    id: "clarice@gmail.com",
-    name: "Clarice",
-    status: "slacking off",
-    live: false,
-  },
-  {
-    id: "julie@gmail.com",
-    name: "Julie",
-    status: "making a cpu simulator for CS 3410",
-    live: true,
-  }
+  { id: USER_ID, name: me.name, status: me.status, isYou: true, live: false },
+  ...myFriendIds.map((fid) => {
+    const u = ALL_USERS[fid] ?? { name: fid, status: "" };
+    return { id: fid, name: u.name, status: u.status, live: false };
+  }),
 ];
 
 const FRIEND_REQUESTS = [
-  // placeholders
   { id: "michelle@gmail.com", name: "Michelle" },
   { id: "yiwen@gmail.com", name: "Yiwen" },
   { id: "namitha@gmail.com", name: "Namitha" },
@@ -61,13 +77,11 @@ const btnDanger = {
   color: "#000",
 };
 
-const Screen = ({ name, isBlurred, isOff, isViewingBonk }) => {
-  // Shows a black screen when not live
+
+const Screen = ({ name, isBlurred, isOff, isViewingBonk, snapshotUrl }) => {
   if (isOff) {
     return <div style={{ width: "100%", height: "100%", background: "#000" }} />;
   }
-  
-  // Pauses screen sharing when on this tab
   if (isViewingBonk) {
     return (
       <div
@@ -92,7 +106,6 @@ const Screen = ({ name, isBlurred, isOff, isViewingBonk }) => {
       </div>
     );
   }
-
   return (
     <div
       style={{
@@ -108,21 +121,47 @@ const Screen = ({ name, isBlurred, isOff, isViewingBonk }) => {
         overflow: "hidden",
       }}
     >
+      {snapshotUrl ? (
+        <img
+          src={snapshotUrl}
+          alt={`${name}'s screen`}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            display: "block",
+          }}
+        />
+      ) : (
+        <div
+          style={{
+            opacity: 0.15,
+            fontSize: 11,
+            color: SECONDARY,
+            ...mono,
+            lineHeight: 1.5,
+            textAlign: "center",
+          }}
+        >
+          {`~ ${name.split(" ")[0].toLowerCase()} ~`}
+        </div>
+      )}
       <div
         style={{
-          opacity: 0.15,
-          fontSize: 11,
-          color: "#fff",
+          position: "absolute",
+          bottom: 5,
+          right: 6,
+          fontSize: 8,
+          color: "#39ff14",
           ...mono,
-          lineHeight: 1.5,
-          textAlign: "center",
         }}
       >
-        {`~ ${name.split(" ")[0].toLowerCase()} ~`}
+        ● live
       </div>
     </div>
   );
 };
+
 
 const CloseBtn = ({ onClick }) => (
   <button
@@ -148,6 +187,38 @@ const CloseBtn = ({ onClick }) => (
     x
   </button>
 );
+
+
+/** Video element that auto-attaches a MediaStream via ref. */
+const ExpandedVideo = ({ stream }) => {
+  const videoRef = useRef(null);
+  useEffect(() => {
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream;
+    }
+    return () => {
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+    };
+  }, [stream]);
+  return (
+    <video
+      ref={videoRef}
+      autoPlay
+      playsInline
+      muted
+      style={{
+        width: "100%",
+        height: "100%",
+        objectFit: "cover",
+        display: "block",
+        background: PRIMARY,
+      }}
+    />
+  );
+};
+
 
 const StatusEditor = ({ value, onChange }) => {
   const [editing, setEditing] = useState(false);
@@ -211,6 +282,7 @@ const StatusEditor = ({ value, onChange }) => {
   );
 };
 
+
 const FriendsPanel = ({
   show,
   onClose,
@@ -222,7 +294,6 @@ const FriendsPanel = ({
   onAdd,
 }) => {
   if (!show) return null;
-  
   return (
     <div
       style={{
@@ -352,6 +423,7 @@ const FriendsPanel = ({
   );
 };
 
+
 export default function Grid() {
   const [blurred, setBlurred] = useState(false);
   const [screenOn, setScreenOn] = useState(false);
@@ -361,7 +433,8 @@ export default function Grid() {
   const [requests, setRequests] = useState(FRIEND_REQUESTS);
   const [addEmail, setAddEmail] = useState("");
   const [showPreview, setShowPreview] = useState(false);
-  const [yourStatus, setYourStatus] = useState("deep focus 🎧");
+  const [yourStatus, setYourStatus] = useState("edit status here");
+  const [toast, setToast] = useState(null);
 
   // Track if this tab is active
   const [viewingBonk, setViewingBonk] = useState(
@@ -375,18 +448,118 @@ export default function Grid() {
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, []);
 
-  // Accepts friend requests and adds them
+  /** Snapshot URLs keyed by friend userId */
+  const [snapshotUrls, setSnapshotUrls] = useState({});
+
+  /** Ref so the snapshot worker can read the latest viewingBonk without restarting */
+  const viewingBonkRef = useRef(viewingBonk);
+  useEffect(() => { viewingBonkRef.current = viewingBonk; }, [viewingBonk]);
+
+  /** Hold the real video track so we can stop it later */
+  const realTrackRef = useRef(null);
+
+  /** Remote MediaStreams keyed by sharer userId */
+  const remoteStreamsRef = useRef({});
+  /** Counter to force re-render when remote streams change */
+  const [remoteStreamVersion, setRemoteStreamVersion] = useState(0);
+
+  /** Socket connection lifecycle */
+  useEffect(() => {
+    socket.connect();
+    socket.emit("user:online", USER_ID);
+
+    /** When a friend's snapshot is updated, refresh the URL. */
+    socket.on("snapshot:update", ({ userId, timestamp }) => {
+      setSnapshotUrls((prev) => ({
+        ...prev,
+        [userId]: `/api/snapshot/${encodeURIComponent(userId)}?t=${timestamp}`,
+      }));
+    });
+
+    /** Init presence, mark friends as live/online */
+    socket.on("presence:init", ({ liveFriends }) => {
+      setFriends((prev) =>
+        prev.map((f) =>
+          liveFriends.includes(f.id) ? { ...f, live: true } : f
+        )
+      );
+      for (const fid of liveFriends) {
+        setSnapshotUrls((prev) => ({
+          ...prev,
+          [fid]: `/api/snapshot/${encodeURIComponent(fid)}?t=${Date.now()}`,
+        }));
+      }
+    });
+
+    /** Change in a friend's presence */
+    socket.on("presence:update", ({ userId, online, live }) => {
+      setFriends((prev) => {
+        const exists = prev.some((f) => f.id === userId);
+        if (!exists) return prev;
+        return prev.map((f) =>
+          f.id === userId ? { ...f, live, online } : f
+        );
+      });
+      if (!live) {
+        setSnapshotUrls((prev) => {
+          const next = { ...prev };
+          delete next[userId];
+          return next;
+        });
+      }
+    });
+
+    // ── WebRTC signaling events ──
+
+    setOnRemoteStream((sharerId, stream) => {
+      remoteStreamsRef.current[sharerId] = stream;
+      setRemoteStreamVersion((v) => v + 1);
+    });
+    setOnRemoteStreamRemoved((sharerId) => {
+      delete remoteStreamsRef.current[sharerId];
+      setRemoteStreamVersion((v) => v + 1);
+    });
+
+    socket.on("peer:request-offer", ({ fromId }) => {
+      createInboundPeer(fromId);
+    });
+
+    socket.on("peer:offer", ({ fromId, sdp }) => {
+      handleOffer(fromId, sdp);
+    });
+
+    socket.on("peer:answer", ({ fromId, sdp }) => {
+      handleAnswer(fromId, sdp);
+    });
+
+    socket.on("peer:ice", ({ fromId, candidate }) => {
+      handleIce(fromId, candidate);
+    });
+
+    socket.on("peer:sharer-stopped", ({ sharerId }) => {
+      closeInbound(sharerId);
+    });
+
+    return () => {
+      socket.off("snapshot:update");
+      socket.off("presence:init");
+      socket.off("presence:update");
+      socket.off("peer:request-offer");
+      socket.off("peer:offer");
+      socket.off("peer:answer");
+      socket.off("peer:ice");
+      socket.off("peer:sharer-stopped");
+      closeAllPeers();
+      socket.disconnect();
+    };
+  }, []);
+
   const handleAccept = (id) => {
     const r = requests.find((x) => x.id === id);
     if (r) {
       setFriends((prev) => [
         ...prev,
-        {
-          id: r.id,
-          name: r.name,
-          status: "",
-          live: false,
-        },
+        { id: r.id, name: r.name, status: "", live: false },
       ]);
     }
     setRequests((prev) => prev.filter((x) => x.id !== id));
@@ -399,10 +572,8 @@ export default function Grid() {
     if (addEmail.trim()) setAddEmail("");
   };
 
-  // Your screen is only viewable/expandable if you are live
-  const isViewable = (f) => f.isYou ? screenOn : f.live;
+  const isViewable = (f) => (f.isYou ? screenOn : f.live);
 
-  // Expand clicked screen
   const handleCardClick = (id) => {
     const f = friends.find((x) => x.id === id);
     if (!f || !isViewable(f)) return;
@@ -412,6 +583,13 @@ export default function Grid() {
   const handleGoLiveToggle = (e) => {
     e.stopPropagation();
     if (screenOn) {
+      stopSnapshotWorker();
+      closeAllOutbound();
+      if (realTrackRef.current) {
+        realTrackRef.current.stop();
+        realTrackRef.current = null;
+      }
+      socket.emit("user:stoplive");
       setScreenOn(false);
       setShowPreview(false);
       setExpandedId(null);
@@ -421,10 +599,53 @@ export default function Grid() {
     }
   };
 
-  const handleConfirmLive = () => {
-    setScreenOn(true);
-    setShowPreview(false);
-    setExpandedId("you@gmail.com");
+  const handleConfirmLive = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { displaySurface: "monitor" },
+        audio: false,
+      });
+      const track = stream.getVideoTracks()[0];
+
+      if (track.getSettings().displaySurface !== "monitor") {
+        track.stop();
+        setToast("Please share your entire screen.");
+        setTimeout(() => setToast(null), 5000);
+        await new Promise((r) => setTimeout(r, 300));
+        return handleConfirmLive();
+      }
+
+      realTrackRef.current = track;
+
+      track.onended = () => {
+        stopSnapshotWorker();
+        closeAllOutbound();
+        socket.emit("user:stoplive");
+        realTrackRef.current = null;
+        setScreenOn(false);
+        setShowPreview(false);
+        setExpandedId(null);
+      };
+
+      setScreenOn(true);
+      setShowPreview(false);
+      setExpandedId(USER_ID);
+      socket.emit("user:golive");
+
+      const onlineFriends = friends.filter((f) => !f.isYou && f.online !== false);
+      for (const f of onlineFriends) {
+        createOutboundPeer(f.id, track);
+      }
+
+      startSnapshotWorker(
+        track,
+        USER_ID,
+        () => viewingBonkRef.current
+      );
+    } catch (err) {
+      console.warn("[bonk] screen capture cancelled:", err);
+      setShowPreview(false);
+    }
   };
 
   const handleCancelPreview = () => setShowPreview(false);
@@ -435,7 +656,6 @@ export default function Grid() {
 
   const youData = friends.find((f) => f.isYou);
 
-  // Live screens have priority in the grid
   const sortedFriends = useMemo(() => {
     const you = friends.filter((f) => f.isYou);
     const others = friends.filter((f) => !f.isYou);
@@ -526,10 +746,9 @@ export default function Grid() {
       )}
 
       <div style={{ padding: "12px 24px 40px" }}>
-        
         {/* PREVIEW SCREEN */}
         {showPreview && (
-          <div style={{ marginBottom: 12 }}>
+          <div style={{ maxWidth: 800, margin: "0 auto 12px" }}>
             <div
               style={{
                 border: "1px dashed #ff2e97",
@@ -561,6 +780,7 @@ export default function Grid() {
                   isBlurred={blurred}
                   isOff={false}
                   isViewingBonk={viewingBonk}
+                  snapshotUrl={snapshotUrls[USER_ID]}
                 />
               </div>
               <div
@@ -607,7 +827,7 @@ export default function Grid() {
 
         {/* EXPANDED SCREEN */}
         {expanded && !showPreview && (
-          <div style={{ marginBottom: 12 }}>
+          <div style={{ maxWidth: 800, margin: "0 auto 12px" }}>
             <div
               style={{
                 border: "1px solid #333",
@@ -617,12 +837,18 @@ export default function Grid() {
             >
               <CloseBtn onClick={() => setExpandedId(null)} />
               <div style={{ aspectRatio: "16/9", width: "100%" }}>
-                <Screen
-                  name={expanded.name}
-                  isBlurred={expanded.isYou ? blurred : false}
-                  isOff={expanded.isYou ? !screenOn : false}
-                  isViewingBonk={expanded.isYou ? viewingBonk : false}
-                />
+                {/* Use live <video> for friends with an active remote stream */}
+                {!expanded.isYou && remoteStreamsRef.current[expanded.id] ? (
+                  <ExpandedVideo stream={remoteStreamsRef.current[expanded.id]} />
+                ) : (
+                  <Screen
+                    name={expanded.name}
+                    isBlurred={expanded.isYou ? blurred : false}
+                    isOff={expanded.isYou ? !screenOn : false}
+                    isViewingBonk={expanded.isYou ? viewingBonk : false}
+                    snapshotUrl={snapshotUrls[expanded.id]}
+                  />
+                )}
               </div>
               <div
                 style={{
@@ -634,8 +860,6 @@ export default function Grid() {
                 }}
               >
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  
-                  {/* Name and live status */}
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                     <div style={{ fontSize: 14, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {expanded.name}
@@ -654,7 +878,6 @@ export default function Grid() {
                       </span>
                     )}
                   </div>
-
                   {isViewable(expanded) && (
                     <div style={{ marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       <span style={{ color: "#555", fontSize: 12 }}>
@@ -663,8 +886,6 @@ export default function Grid() {
                     </div>
                   )}
                 </div>
-
-                {/* User buttons */}
                 {expanded.isYou && (
                   <div style={{ display: "flex", gap: 4, marginLeft: 12, flexShrink: 0 }}>
                     <button
@@ -721,6 +942,7 @@ export default function Grid() {
                     isBlurred={f.isYou ? blurred : false}
                     isOff={screenOff}
                     isViewingBonk={f.isYou ? viewingBonk : false}
+                    snapshotUrl={snapshotUrls[f.id]}
                   />
                 </div>
                 <div
@@ -733,8 +955,6 @@ export default function Grid() {
                   }}
                 >
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    
-                    {/* Name and status */}
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                       <div style={{ fontSize: 12, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                         {f.name}
@@ -753,8 +973,6 @@ export default function Grid() {
                         </span>
                       )}
                     </div>
-
-                    {/* Edit status */}
                     <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 2, minHeight: 14, overflow: "hidden" }}>
                       {viewable && (
                         f.isYou ? (
@@ -775,8 +993,6 @@ export default function Grid() {
                       )}
                     </div>
                   </div>
-                  
-                  {/* User buttons */}
                   {f.isYou && (
                     <div style={{ display: "flex", gap: 3, marginLeft: 6, flexShrink: 0 }}>
                       <button
@@ -808,6 +1024,26 @@ export default function Grid() {
           })}
         </div>
       </div>
+
+      {toast && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 24,
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: SECONDARY_ACCENT,
+            color: PRIMARY,
+            padding: "8px 16px",
+            fontSize: 11,
+            fontWeight: 700,
+            zIndex: 200,
+            ...mono,
+          }}
+        >
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
