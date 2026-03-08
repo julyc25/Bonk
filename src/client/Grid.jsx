@@ -1,4 +1,6 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import socket from "./socket.js";
+import { startSnapshotWorker, stopSnapshotWorker } from "./screenshare/snapshots.js";
 
 
 export const mono = { fontFamily: "monospace" };
@@ -63,7 +65,10 @@ const btnDanger = {
 };
 
 
-const Screen = ({ name, isBlurred, isOff, isViewingBonk }) => {
+// TODO: Hardcoded for now, will do auth later.
+const USER_ID = "you@gmail.com";
+
+const Screen = ({ name, isBlurred, isOff, isViewingBonk, snapshotUrl }) => {
  // Shows a black screen when not live
  if (isOff) {
    return <div style={{ width: "100%", height: "100%", background: "#000" }} />;
@@ -120,18 +125,31 @@ const Screen = ({ name, isBlurred, isOff, isViewingBonk }) => {
        overflow: "hidden",
      }}
    >
-     <div
-       style={{
-         opacity: 0.15,
-         fontSize: 9,
-         color: "#fff",
-         ...mono,
-         lineHeight: 1.5,
-         textAlign: "center",
-       }}
-     >
-       {`~ ${name.split(" ")[0].toLowerCase()} ~`}
-     </div>
+     {snapshotUrl ? (
+       <img
+         src={snapshotUrl}
+         alt={`${name}'s screen`}
+         style={{
+           width: "100%",
+           height: "100%",
+           objectFit: "cover",
+           display: "block",
+         }}
+       />
+     ) : (
+       <div
+         style={{
+           opacity: 0.15,
+           fontSize: 9,
+           color: "#fff",
+           ...mono,
+           lineHeight: 1.5,
+           textAlign: "center",
+         }}
+       >
+         {`~ ${name.split(" ")[0].toLowerCase()} ~`}
+       </div>
+     )}
      <div
        style={{
          position: "absolute",
@@ -388,7 +406,8 @@ export default function Grid() {
  const [requests, setRequests] = useState(FRIEND_REQUESTS);
  const [addEmail, setAddEmail] = useState("");
  const [showPreview, setShowPreview] = useState(false);
- const [yourStatus, setYourStatus] = useState("deep focus 🎧");
+ const [yourStatus, setYourStatus] = useState("");
+ const [toast, setToast] = useState(null);
 
 
  const [viewingBonk, setViewingBonk] = useState(
@@ -399,6 +418,72 @@ export default function Grid() {
      setViewingBonk(document.visibilityState === "visible");
    document.addEventListener("visibilitychange", onVisibility);
    return () => document.removeEventListener("visibilitychange", onVisibility);
+ }, []);
+
+ /** Snapshot URLs keyed by friend userId */
+ const [snapshotUrls, setSnapshotUrls] = useState({});
+
+ /** Ref so the snapshot worker can read the latest viewingBonk without restarting */
+ const viewingBonkRef = useRef(viewingBonk);
+ useEffect(() => { viewingBonkRef.current = viewingBonk; }, [viewingBonk]);
+
+ /** Hold the real video track so we can stop it later */
+ const realTrackRef = useRef(null);
+
+ /** Socket connection lifecycle */
+ useEffect(() => {
+   socket.connect();
+   socket.emit("user:online", USER_ID);
+
+   /** When a friend's snapshot is updated, refresh the URL. */
+   socket.on("snapshot:update", ({ userId, timestamp }) => {
+     setSnapshotUrls((prev) => ({
+       ...prev,
+       [userId]: `/api/snapshot/${encodeURIComponent(userId)}?t=${timestamp}`,
+     }));
+   });
+
+   /** Init presence, mark friends as live/online */
+   socket.on("presence:init", ({ liveFriends }) => {
+     setFriends((prev) =>
+       prev.map((f) =>
+         liveFriends.includes(f.id) ? { ...f, live: true } : f
+       )
+     );
+     /** Pre-fetch snapshots for friends that are already live */
+     for (const fid of liveFriends) {
+       setSnapshotUrls((prev) => ({
+         ...prev,
+         [fid]: `/api/snapshot/${encodeURIComponent(fid)}?t=${Date.now()}`,
+       }));
+     }
+   });
+
+   // Change in a friend's presense
+   socket.on("presence:update", ({ userId, online, live }) => {
+     setFriends((prev) => {
+       const exists = prev.some((f) => f.id === userId);
+       if (!exists) return prev;
+       return prev.map((f) =>
+         f.id === userId ? { ...f, live, online } : f
+       );
+     });
+     if (!live) {
+       // Clear previous snapshot
+       setSnapshotUrls((prev) => {
+         const next = { ...prev };
+         delete next[userId];
+         return next;
+       });
+     }
+   });
+
+   return () => {
+     socket.off("snapshot:update");
+     socket.off("presence:init");
+     socket.off("presence:update");
+     socket.disconnect();
+   };
  }, []);
 
 
@@ -441,6 +526,13 @@ export default function Grid() {
  const handleGoLiveToggle = (e) => {
    e.stopPropagation();
    if (screenOn) {
+     // Stop sharing
+     stopSnapshotWorker();
+     if (realTrackRef.current) {
+       realTrackRef.current.stop();
+       realTrackRef.current = null;
+     }
+     socket.emit("user:stoplive");
      setScreenOn(false);
      setShowPreview(false);
      setExpandedId(null);
@@ -451,10 +543,50 @@ export default function Grid() {
  };
 
 
- const handleConfirmLive = () => {
-   setScreenOn(true);
-   setShowPreview(false);
-   setExpandedId("you@gmail.com");
+ const handleConfirmLive = async () => {
+   try {
+     const stream = await navigator.mediaDevices.getDisplayMedia({
+       video: { displaySurface: "monitor" },
+       audio: false,
+     });
+     const track = stream.getVideoTracks()[0];
+
+     // Only allow entire-screen sharing
+     if (track.getSettings().displaySurface !== "monitor") {
+       track.stop();
+       setToast("Please share your entire screen.");
+       setTimeout(() => setToast(null), 5000);
+       await new Promise((r) => setTimeout(r, 300));
+       return handleConfirmLive();
+     }
+
+     realTrackRef.current = track;
+
+     // If the user stops sharing via browser UI, clean up
+     track.onended = () => {
+       stopSnapshotWorker();
+       socket.emit("user:stoplive");
+       realTrackRef.current = null;
+       setScreenOn(false);
+       setShowPreview(false);
+       setExpandedId(null);
+     };
+
+     setScreenOn(true);
+     setShowPreview(false);
+     setExpandedId(USER_ID);
+     socket.emit("user:golive");
+
+     startSnapshotWorker(
+       track,
+       USER_ID,
+       () => viewingBonkRef.current
+     );
+   } catch (err) {
+     // User cancelled the screen picker or permission denied
+     console.warn("[bonk] screen capture cancelled:", err);
+     setShowPreview(false);
+   }
  };
 
 
@@ -596,6 +728,7 @@ export default function Grid() {
                  isBlurred={blurred}
                  isOff={false}
                  isViewingBonk={viewingBonk}
+                 snapshotUrl={snapshotUrls[USER_ID]}
                />
              </div>
              <div
@@ -657,6 +790,7 @@ export default function Grid() {
                  isBlurred={expanded.isYou ? blurred : false}
                  isOff={expanded.isYou ? !screenOn : false}
                  isViewingBonk={expanded.isYou ? viewingBonk : false}
+                 snapshotUrl={snapshotUrls[expanded.id]}
                />
              </div>
              <div
@@ -734,6 +868,7 @@ export default function Grid() {
                    isBlurred={f.isYou ? blurred : false}
                    isOff={screenOff}
                    isViewingBonk={f.isYou ? viewingBonk : false}
+                   snapshotUrl={snapshotUrls[f.id]}
                  />
                </div>
                <div
@@ -813,6 +948,26 @@ export default function Grid() {
          })}
        </div>
      </div>
+
+     {toast && (
+       <div
+         style={{
+           position: "fixed",
+           bottom: 24,
+           left: "50%",
+           transform: "translateX(-50%)",
+           background: "#ff2e97",
+           color: "#000",
+           padding: "8px 16px",
+           fontSize: 11,
+           fontWeight: 700,
+           zIndex: 200,
+           ...mono,
+         }}
+       >
+         {toast}
+       </div>
+     )}
    </div>
  );
 }
