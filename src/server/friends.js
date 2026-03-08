@@ -150,6 +150,23 @@ function declineFriendRequest(userId, fromUserId) {
   return { ok: true };
 }
 
+function removeFriend(userId, friendUserId) {
+  const userIdNorm = normalizeUserId(userId);
+  const friendId = normalizeUserId(friendUserId);
+  if (!hasUser(userIdNorm) || !hasUser(friendId)) {
+    return { ok: false, message: 'This user no longer exists.' };
+  }
+  if (!areFriends(userIdNorm, friendId)) {
+    return { ok: false, message: 'You are not friends with this user.' };
+  }
+
+  ensureUserCollections(userIdNorm);
+  ensureUserCollections(friendId);
+  graph.get(userIdNorm).delete(friendId);
+  graph.get(friendId).delete(userIdNorm);
+  return { ok: true };
+}
+
 function readJsonBody(req) {
   return req.body && typeof req.body === 'object' ? req.body : {};
 }
@@ -214,6 +231,21 @@ export function createFriendsRouter() {
     });
   });
 
+  router.post('/api/friends/remove', (req, res) => {
+    const userId = normalizeUserId(req.authUser?.id);
+    const body = readJsonBody(req);
+    if (!hasUser(userId)) {
+      return res.status(401).json({ error: 'Please sign in again.' });
+    }
+
+    const result = removeFriend(userId, body.friendId);
+    if (!result.ok) return res.status(404).json({ error: result.message });
+    return res.json({
+      ok: true,
+      friends: getFriendProfiles(userId),
+      requests: getIncomingFriendRequests(userId),
+    });
+  });
+
   return router;
 }
-

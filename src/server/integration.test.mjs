@@ -135,6 +135,39 @@ async function testFriendRequestFlow() {
   console.log('PASS friend request flow');
 }
 
+async function testRemoveFriendFlow() {
+  const harness = await startHarness();
+  const youId = 'remove_you@gmail.com';
+  const friendId = 'remove_friend@gmail.com';
+  try {
+    const youCookie = await devLogin(harness.baseUrl, youId);
+    const friendCookie = await devLogin(harness.baseUrl, friendId);
+    await makeFriends(harness.baseUrl, youCookie, friendCookie, youId, friendId);
+
+    const removeResponse = await fetch(`${harness.baseUrl}/api/friends/remove`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: youCookie },
+      body: JSON.stringify({ friendId }),
+    });
+    assert.equal(removeResponse.status, 200);
+    const removePayload = await removeResponse.json();
+    assert.equal(removePayload.friends.some((f) => f.id === friendId), false);
+
+    const youFriendsResponse = await fetch(`${harness.baseUrl}/api/friends`, { headers: { Cookie: youCookie } });
+    assert.equal(youFriendsResponse.status, 200);
+    const youFriendsPayload = await youFriendsResponse.json();
+    assert.equal(youFriendsPayload.friends.some((f) => f.id === friendId), false);
+
+    const friendFriendsResponse = await fetch(`${harness.baseUrl}/api/friends`, { headers: { Cookie: friendCookie } });
+    assert.equal(friendFriendsResponse.status, 200);
+    const friendFriendsPayload = await friendFriendsResponse.json();
+    assert.equal(friendFriendsPayload.friends.some((f) => f.id === youId), false);
+  } finally {
+    await harness.close();
+  }
+  console.log('PASS remove friend flow');
+}
+
 async function testSignalingRelay() {
   const harness = await startHarness();
   try {
@@ -258,6 +291,7 @@ async function testSnapshotPipeline() {
 async function main() {
   await testFriendsEndpoint();
   await testFriendRequestFlow();
+  await testRemoveFriendFlow();
   await testSignalingRelay();
   await testSnapshotPipeline();
   console.log('ALL_SERVER_TESTS_PASS');

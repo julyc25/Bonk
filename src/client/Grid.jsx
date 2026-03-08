@@ -6,6 +6,7 @@ import { startSnapshotWorker, stopSnapshotWorker } from "./screenshare/snapshots
 import {
   createOutboundPeer,
   closeAllOutbound,
+  closeOutbound,
   closeInbound,
   closeAllPeers,
   handleOffer,
@@ -467,6 +468,8 @@ export default function Grid() {
   const [loadingFriends, setLoadingFriends] = useState(true);
   const [toast, setToast] = useState(null);
   const [hoveredVideoId, setHoveredVideoId] = useState(null);
+  const [removeFriendId, setRemoveFriendId] = useState(null);
+  const [removingFriendId, setRemovingFriendId] = useState(null);
 
   // Track if this tab is active
   const [viewingBonk, setViewingBonk] = useState(
@@ -788,9 +791,73 @@ export default function Grid() {
     }
   };
 
+  const cleanupFriendViewState = (friendId) => {
+    closeInbound(friendId);
+    closeOutbound(friendId);
+    onlineFriendsRef.current.delete(friendId);
+    liveFriendsRef.current.delete(friendId);
+    setSnapshotUrls((prev) => {
+      if (!prev[friendId]) return prev;
+      const next = { ...prev };
+      delete next[friendId];
+      return next;
+    });
+    setPeerUnavailable((prev) => {
+      if (!prev[friendId]) return prev;
+      const next = { ...prev };
+      delete next[friendId];
+      return next;
+    });
+    setRemoteStreams((prev) => {
+      if (!prev[friendId]) return prev;
+      const next = { ...prev };
+      delete next[friendId];
+      return next;
+    });
+    setHoveredVideoId((prev) => (prev === friendId ? null : prev));
+    setExpandedId((prev) => (prev === friendId ? null : prev));
+  };
+
+  const handleRemoveFriendConfirm = async (event, friendId) => {
+    event.stopPropagation();
+    if (removingFriendId) return;
+    try {
+      setRemovingFriendId(friendId);
+      const payload = await apiJson("/api/friends/remove", {
+        method: "POST",
+        body: JSON.stringify({ friendId }),
+      });
+      setFriends((prev) => {
+        const self = prev.find((f) => f.isYou);
+        if (!self) return prev.filter((f) => f.id !== friendId);
+        const previousById = new Map(prev.map((friend) => [friend.id, friend]));
+        const others = (payload.friends ?? []).map((friend) => ({
+          id: friend.id,
+          name: friend.name || friend.id,
+          status: friend.status || "",
+          isYou: false,
+          live: previousById.get(friend.id)?.live ?? liveFriendsRef.current.has(friend.id),
+          online: previousById.get(friend.id)?.online ?? onlineFriendsRef.current.has(friend.id),
+        }));
+        return [self, ...others];
+      });
+      setRequests((prev) => payload.requests ?? prev);
+      cleanupFriendViewState(friendId);
+      setRemoveFriendId(null);
+      setToast("Friend removed.");
+      setTimeout(() => setToast(null), 3000);
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Couldn't remove this friend.");
+      setTimeout(() => setToast(null), 4000);
+    } finally {
+      setRemovingFriendId(null);
+    }
+  };
+
   const isViewable = (f) => (f.isYou ? screenOn : f.live && !peerUnavailable[f.id]);
 
   const handleCardClick = (id) => {
+    if (removeFriendId) setRemoveFriendId(null);
     const f = friends.find((x) => x.id === id);
     if (!f || !isViewable(f)) return;
     setExpandedId((prev) => (prev === id ? null : id));
@@ -1191,11 +1258,92 @@ export default function Grid() {
                 style={{
                   background: "#000",
                   border: isExp ? "3px solid #ff2e97" : "2px solid #333",
+                  position: "relative",
                   cursor: screenOff ? "default" : "pointer",
                   opacity: isExp ? 0.6 : 1,
                   transition: "opacity 0.15s",
                 }}
               >
+                {!f.isYou && (
+                  <>
+                    <button
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setRemoveFriendId((prev) => (prev === f.id ? null : f.id));
+                      }}
+                      disabled={Boolean(removingFriendId)}
+                      title="remove friend"
+                      style={{
+                        position: "absolute",
+                        top: 6,
+                        right: 6,
+                        zIndex: 16,
+                        width: 18,
+                        height: 18,
+                        border: "1px solid #333",
+                        background: "#000",
+                        color: "#888",
+                        fontSize: 11,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        ...mono,
+                      }}
+                    >
+                      x
+                    </button>
+                    {removeFriendId === f.id && (
+                      <div
+                        onClick={(event) => event.stopPropagation()}
+                        style={{
+                          position: "absolute",
+                          top: 28,
+                          right: 6,
+                          zIndex: 18,
+                          border: "1px solid #ff2e97",
+                          background: "#000",
+                          padding: "8px 10px",
+                          minWidth: 106,
+                          maxWidth: 106
+                        }}
+                      >
+                        <div style={{ fontSize: 10, color: "#ff2e97", marginBottom: 6 }}>
+                          remove friend?
+                        </div>
+                        <div style={{ display: "flex", gap: 10 }}>
+                          <button
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              if (removingFriendId !== f.id) setRemoveFriendId(null);
+                            }}
+                            disabled={removingFriendId === f.id}
+                            style={{
+                              ...btn,
+                              fontSize: 10,
+                              padding: "2px 5px",
+                            }}
+                          >
+                            cancel
+                          </button>
+                          <button
+                            onClick={(event) => handleRemoveFriendConfirm(event, f.id)}
+                            disabled={removingFriendId === f.id}
+                            style={{
+                              ...btnDanger,
+                              fontSize: 10,
+                              padding: "2px 5px",
+                              background: "#ff2e97",
+                              color: "#000",
+                            }}
+                          >
+                            {removingFriendId === f.id ? "..." : "confirm"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
                 <div
                   style={{ aspectRatio: "16/10", position: "relative" }}
                   onMouseEnter={() => {

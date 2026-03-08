@@ -229,6 +229,13 @@ export function closeAllOutbound() {
   outboundTracks.clear();
 }
 
+/** Close a specific outbound peer by viewer id. */
+export function closeOutbound(friendId) {
+  closeOutboundPeer(friendId);
+  outboundReconnectAttempts.delete(friendId);
+  outboundTracks.delete(friendId);
+}
+
 /** Close a specific inbound peer when a sharer stops. */
 export function closeInbound(sharerId) {
   closeInboundPeer(sharerId);

@@ -7,7 +7,7 @@ import Grid from './client/Grid.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <BrowserRouter basename="/Bonk">
+    <BrowserRouter>
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/view" element={<Grid />} />
