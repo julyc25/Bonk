@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+﻿import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import socket from "./socket.js";
 import bonkSoundUrl from "../sound/bonk.mp3";
@@ -25,6 +25,8 @@ const PRIMARY_ACCENT = '#555';
 const SECONDARY_ACCENT = '#ff2e97';
 const SECONDARY = '#FFF';
 const BONK_SOUND_URL = bonkSoundUrl;
+const LOCAL_BLUR_FILTER = "blur(10px)";
+const SHARED_BLUR_FILTER = "blur(14px)";
 
 async function apiJson(url, options = {}) {
   const response = await fetch(url, {
@@ -117,7 +119,7 @@ const Screen = ({ name, isBlurred, isOff, isViewingBonk, snapshotUrl }) => {
         width: "100%",
         height: "100%",
         background: "#000",
-        filter: isBlurred ? "blur(8px)" : "none",
+        filter: isBlurred ? LOCAL_BLUR_FILTER : "none",
         transition: "filter 0.2s",
         display: "flex",
         alignItems: "center",
@@ -502,9 +504,13 @@ export default function Grid() {
   /** Ref so the snapshot worker can read the latest viewingBonk without restarting */
   const viewingBonkRef = useRef(viewingBonk);
   useEffect(() => { viewingBonkRef.current = viewingBonk; }, [viewingBonk]);
+  const blurredRef = useRef(blurred);
+  useEffect(() => { blurredRef.current = blurred; }, [blurred]);
 
   /** Hold the real video track so we can stop it later */
   const realTrackRef = useRef(null);
+  const shareTrackRef = useRef(null);
+  const sharePipelineRef = useRef(null);
   const bonkAudioRef = useRef(null);
 
   /** Remote MediaStreams keyed by sharer userId */
@@ -528,6 +534,25 @@ export default function Grid() {
     audio.currentTime = 0;
     void audio.play().catch(() => {});
   }, []);
+
+  const stopSharePipeline = useCallback(() => {
+    const pipeline = sharePipelineRef.current;
+    sharePipelineRef.current = null;
+    shareTrackRef.current = null;
+    if (!pipeline) return;
+    if (pipeline.intervalId !== null) {
+      clearInterval(pipeline.intervalId);
+    }
+    pipeline.video.pause();
+    pipeline.video.srcObject = null;
+    if (pipeline.outputTrack.readyState === "live") {
+      pipeline.outputTrack.stop();
+    }
+  }, []);
+
+  useEffect(() => () => {
+    stopSharePipeline();
+  }, [stopSharePipeline]);
 
   /** Load friend graph and pending requests from backend. */
   useEffect(() => {
@@ -634,8 +659,8 @@ export default function Grid() {
           f.id === userId ? { ...f, live, online } : f
         );
       });
-      if (online && realTrackRef.current && !getOutboundPeers().has(userId)) {
-        createOutboundPeer(userId, realTrackRef.current);
+      if (online && shareTrackRef.current && !getOutboundPeers().has(userId)) {
+        createOutboundPeer(userId, shareTrackRef.current);
       }
       if (online === false) {
         closeInbound(userId);
@@ -682,8 +707,8 @@ export default function Grid() {
     });
 
     socket.on("peer:request-offer", ({ fromId }) => {
-      if (!realTrackRef.current) return;
-      createOutboundPeer(fromId, realTrackRef.current);
+      if (!shareTrackRef.current) return;
+      createOutboundPeer(fromId, shareTrackRef.current);
     });
 
     socket.on("peer:offer", ({ fromId, sdp }) => {
@@ -870,9 +895,60 @@ export default function Grid() {
     playBonkSound();
   };
 
+  const createShareTrack = (sourceTrack) => {
+    stopSharePipeline();
+
+    const sourceStream = new MediaStream([sourceTrack]);
+    const video = document.createElement("video");
+    video.srcObject = sourceStream;
+    video.muted = true;
+    video.playsInline = true;
+    void video.play().catch(() => {});
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    const fps = Math.min(
+      30,
+      Math.max(8, Math.round(sourceTrack.getSettings?.().frameRate ?? 15))
+    );
+    const outputStream = canvas.captureStream(fps);
+    const outputTrack = outputStream.getVideoTracks()[0];
+
+    const pipeline = {
+      video,
+      outputTrack,
+      intervalId: null,
+    };
+    sharePipelineRef.current = pipeline;
+    shareTrackRef.current = outputTrack;
+
+    const render = () => {
+      if (sharePipelineRef.current !== pipeline) return;
+      if (sourceTrack.readyState !== "live") return;
+      const width = video.videoWidth || sourceTrack.getSettings?.().width || 1280;
+      const height = video.videoHeight || sourceTrack.getSettings?.().height || 720;
+      if (width > 0 && height > 0) {
+        if (canvas.width !== width || canvas.height !== height) {
+          canvas.width = width;
+          canvas.height = height;
+        }
+        if (ctx) {
+          ctx.filter = blurredRef.current ? SHARED_BLUR_FILTER : "none";
+          ctx.drawImage(video, 0, 0, width, height);
+          ctx.filter = "none";
+        }
+      }
+    };
+
+    pipeline.intervalId = setInterval(render, Math.max(16, Math.round(1000 / fps)));
+    render();
+    return outputTrack;
+  };
+
   const stopLiveSession = () => {
     stopSnapshotWorker();
     closeAllOutbound();
+    stopSharePipeline();
     if (realTrackRef.current) {
       const track = realTrackRef.current;
       realTrackRef.current = null;
@@ -914,6 +990,7 @@ export default function Grid() {
       const track = stream.getVideoTracks()[0];
 
       realTrackRef.current = track;
+      const shareTrack = createShareTrack(track);
 
       track.onended = () => {
         stopLiveSession();
@@ -928,11 +1005,11 @@ export default function Grid() {
         (f) => !f.isYou && (onlineFriendIds.size === 0 || onlineFriendIds.has(f.id))
       );
       for (const f of onlineFriends) {
-        createOutboundPeer(f.id, track);
+        createOutboundPeer(f.id, shareTrack);
       }
 
       startSnapshotWorker(
-        track,
+        shareTrack,
         currentUser?.id,
         () => viewingBonkRef.current
       );
