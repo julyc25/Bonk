@@ -157,7 +157,6 @@ const Screen = ({ name, isBlurred, isOff, isViewingBonk, snapshotUrl }) => {
           ...mono,
         }}
       >
-        ● live
       </div>
     </div>
   );
